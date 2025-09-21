@@ -1,7 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import RegistroCliente from '../Modals/RegistroCliente/RegistroCliente';
 import AccesoCliente from '../Modals/AccesoCliente/AccesoCliente';
+
+interface User {
+  id: number;
+  nombre: string;
+  apellido: string;
+  correo_electronico: string;
+  tipo_usuario_id: number;
+  tipo_usuario_nombre?: string;
+}
 
 const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -10,7 +19,31 @@ const Header: React.FC = () => {
   const [desktopDropdown, setDesktopDropdown] = useState<string | null>(null);
   const [showRegistroModal, setShowRegistroModal] = useState(false);
   const [showAccesoModal, setShowAccesoModal] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const navigate = useNavigate();
+
+  // Verificar si hay usuario logueado al cargar el componente
+  useEffect(() => {
+    const checkUser = () => {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        try {
+          const parsedUser = JSON.parse(userData);
+          setUser(parsedUser);
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+          localStorage.removeItem('user');
+        }
+      }
+    };
+
+    checkUser();
+
+    // Escuchar cambios en localStorage (para cuando el usuario se loguee/desloguee)
+    window.addEventListener('storage', checkUser);
+    return () => window.removeEventListener('storage', checkUser);
+  }, []);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -18,7 +51,7 @@ const Header: React.FC = () => {
 
   const toggleCategory = (category: string) => {
     setExpandedCategory(expandedCategory === category ? null : category);
-    setExpandedSubCategory(null); // Reset subcategoría al cambiar categoría principal
+    setExpandedSubCategory(null);
   };
 
   const toggleSubCategory = (subCategory: string) => {
@@ -41,6 +74,17 @@ const Header: React.FC = () => {
     navigate(path);
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    setUser(null);
+    setShowUserDropdown(false);
+    navigate('/');
+  };
+
+  const isAdmin = () => {
+    return user?.tipo_usuario_id === 2;
+  };
+
   return (
     <>
       <header className="w-full relative z-50">
@@ -56,21 +100,100 @@ const Header: React.FC = () => {
               <span className="text-white text-lg">ventas@canadian.com.ar</span>
             </div>
             
-            {/* Botones derecha */}
-            <div className="flex gap-1">
-              <button 
-                className="text-white text-lg active:text-gray-300 transition-colors py-1"
-                onClick={() => setShowRegistroModal(true)}
-              >
-                👤 Quiero ser cliente
-              </button>
-              <span className="text-gray-400 text-2xl">|</span>
-              <button 
-                className="text-white text-lg active:text-gray-300 transition-colors py-1"
-                onClick={() => setShowAccesoModal(true)}
-              >
-                Acceso cliente
-              </button>
+            {/* Botones derecha - Dinámicos según estado de login */}
+            <div className="flex gap-1 items-center">
+              {user ? (
+                // Usuario logueado
+                <div className="relative">
+                  <button 
+                    className="text-white text-lg hover:text-gray-300 transition-colors py-1 flex items-center gap-2"
+                    onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  >
+                    <span>👤 {user.nombre} {user.apellido}</span>
+                    <svg className={`w-4 h-4 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Dropdown del usuario */}
+                  {showUserDropdown && (
+                    <div className="absolute right-0 top-full mt-1 bg-white text-black rounded-md shadow-lg min-w-64 z-50">
+                      <div className="p-3 border-b border-gray-200">
+                        <p className="font-semibold">{user.nombre} {user.apellido}</p>
+                        <p className="text-sm text-gray-600">{user.correo_electronico}</p>
+                        <p className="text-xs text-gray-500">{user.tipo_usuario_nombre || 'Usuario'}</p>
+                      </div>
+                      
+                      <div className="py-1">
+                        <button 
+                          className="w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors"
+                          onClick={() => {
+                            setShowUserDropdown(false);
+                            navigate('/perfil');
+                          }}
+                        >
+                          👤 Mi Perfil
+                        </button>
+                        
+                        {/* Menú de Admin - Solo si es admin */}
+                        {isAdmin() && (
+                          <>
+                            <div className="border-t border-gray-200 my-1"></div>
+                            <div className="px-3 py-1">
+                              <p className="text-xs font-semibold text-gray-500 uppercase">Panel de Administración</p>
+                            </div>
+                            
+                            <button 
+                              className="w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors text-blue-600"
+                              onClick={() => {
+                                setShowUserDropdown(false);
+                                navigate('/admin/users');
+                              }}
+                            >
+                              👥 Ver Usuarios
+                            </button>
+                            
+                            <button 
+                              className="w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors text-blue-600"
+                              onClick={() => {
+                                setShowUserDropdown(false);
+                                navigate('/admin/products');
+                              }}
+                            >
+                              📦 Crear Productos
+                            </button>
+                          </>
+                        )}
+                        
+                        <div className="border-t border-gray-200 my-1"></div>
+                        <button 
+                          className="w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors text-red-600"
+                          onClick={handleLogout}
+                        >
+                          🚪 Cerrar Sesión
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                // Usuario no logueado - Botones originales
+                <>
+                  <button 
+                    className="text-white text-lg active:text-gray-300 transition-colors py-1"
+                    onClick={() => setShowRegistroModal(true)}
+                  >
+                    👤 Quiero ser cliente
+                  </button>
+                  <span className="text-gray-400 text-2xl">|</span>
+                  <button 
+                    className="text-white text-lg active:text-gray-300 transition-colors py-1"
+                    onClick={() => setShowAccesoModal(true)}
+                  >
+                    Acceso cliente
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

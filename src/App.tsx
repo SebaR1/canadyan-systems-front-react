@@ -6,6 +6,7 @@ import './App.css';
 import Home from './pages/Home/Home';
 import Catalogo from './pages/Catalogo/Catalogo';
 import Contacto from './pages/Contacto/Contacto';
+import Perfil from './pages/Perfil/Perfil';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/catalogo" element={<Catalogo />} />
         <Route path="/contacto" element={<Contacto />} />
+        <Route path="/perfil" element={<Perfil />} />
       </Routes>
     </Router>
   );
