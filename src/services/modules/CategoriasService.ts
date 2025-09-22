@@ -49,6 +49,12 @@ export class CategoriasService {
     return this.apiClient.patch<Categoria>(`/categorias.php?action=toggle&id=${id}`, { activo });
   }
 
+  // Obtener árbol de categorías (estructura jerárquica)
+  async obtenerArbol(): Promise<ApiResponse<{ tree: Categoria[] }>> {
+    return this.apiClient.get<{ tree: Categoria[] }>('/api/routes/categorias.php?action=tree');
+  }
+
+
   // Obtener estadísticas de categorías (admin)
   async obtenerEstadisticas(): Promise<ApiResponse<{
     total: number;

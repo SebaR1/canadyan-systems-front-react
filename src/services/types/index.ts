@@ -84,6 +84,9 @@ export interface Categoria {
   id: number;
   nombre: string;
   descripcion?: string;
+  slug: string;           // ← Agregar
+  parent_id: number | null;  // ← Agregar  
+  children?: Categoria[]; // ← Agregar (opcional)
   activo: boolean;
   fecha_creacion: string;
 }

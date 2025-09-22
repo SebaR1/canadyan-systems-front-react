@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import RegistroCliente from '../Modals/RegistroCliente/RegistroCliente';
 import AccesoCliente from '../Modals/AccesoCliente/AccesoCliente';
+import apiManager from '../../services/ApiIndex';
 
 interface User {
   id: number;
@@ -10,6 +11,17 @@ interface User {
   correo_electronico: string;
   tipo_usuario_id: number;
   tipo_usuario_nombre?: string;
+}
+
+export interface Categoria {
+  id: number;
+  nombre: string;
+  descripcion?: string;
+  slug: string;           // ← Agregar
+  parent_id: number | null;  // ← Agregar  
+  children?: Categoria[]; // ← Agregar (opcional)
+  activo: boolean;
+  fecha_creacion: string;
 }
 
 const Header: React.FC = () => {
@@ -21,6 +33,8 @@ const Header: React.FC = () => {
   const [showAccesoModal, setShowAccesoModal] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [loadingCategorias, setLoadingCategorias] = useState(false);
   const navigate = useNavigate();
 
   // Verificar si hay usuario logueado al cargar el componente
@@ -43,6 +57,27 @@ const Header: React.FC = () => {
     // Escuchar cambios en localStorage (para cuando el usuario se loguee/desloguee)
     window.addEventListener('storage', checkUser);
     return () => window.removeEventListener('storage', checkUser);
+  }, []);
+
+  // Cargar categorías desde la API
+  useEffect(() => {
+    const loadCategorias = async () => {
+      setLoadingCategorias(true);
+      try {
+        const response = await apiManager.categorias.obtenerArbol();
+        if (response.success && response.data) {
+          setCategorias(response.data.tree || []);
+        } else {
+          console.error('Error al cargar categorías:', response.error);
+        }
+      } catch (error) {
+        console.error('Error al cargar categorías:', error);
+      } finally {
+        setLoadingCategorias(false);
+      }
+    };
+
+    loadCategorias();
   }, []);
 
   const toggleMenu = () => {
@@ -72,6 +107,11 @@ const Header: React.FC = () => {
   const handleNavigation = (path: string) => {
     closeMenu();
     navigate(path);
+  };
+
+  const handleCategoryNavigation = (categoriaId: number, categoriaNombre: string) => {
+    closeMenu();
+    navigate(`/catalogo?categoria=${categoriaId}&nombre=${encodeURIComponent(categoriaNombre)}`);
   };
 
   const handleLogout = () => {
@@ -228,7 +268,7 @@ const Header: React.FC = () => {
 
             {/* Menú horizontal - Solo visible en desktop */}
             <nav className="hidden md:flex flex-1 justify-start pl-5 space-x-6">
-              {/* CATÁLOGO */}
+              {/* CATÁLOGO - Ahora dinámico */}
               <div className="relative">
                 <button 
                   className="text-white hover:text-orange-400 transition-colors py-2 flex items-center space-x-1"
@@ -240,51 +280,55 @@ const Header: React.FC = () => {
                   </svg>
                 </button>
                 
-                {/* Dropdown CATÁLOGO */}
+                {/* Dropdown CATÁLOGO - Categorías dinámicas */}
                 {desktopDropdown === 'catalogo' && (
                   <div className="absolute top-full left-0 mt-1 w-56 bg-black text-white rounded-md shadow-lg z-50">
                     <div className="py-2">
-                      <Link 
-                        to="/catalogo" 
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
-                        onClick={() => setDesktopDropdown(null)}
-                      >
-                        CONECTIVIDAD
-                      </Link>
-                      <Link 
-                        to="/catalogo" 
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
-                        onClick={() => setDesktopDropdown(null)}
-                      >
-                        VIDEO PORTERO
-                      </Link>
-                      <Link 
-                        to="/catalogo" 
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
-                        onClick={() => setDesktopDropdown(null)}
-                      >
-                        CONTROL DE ACCESOS
-                      </Link>
-                      <Link 
-                        to="/catalogo" 
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
-                        onClick={() => setDesktopDropdown(null)}
-                      >
-                        ALARMAS
-                      </Link>
-                      <Link 
-                        to="/catalogo" 
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
-                        onClick={() => setDesktopDropdown(null)}
-                      >
-                        ENERGÍA
-                      </Link>
+                      {loadingCategorias ? (
+                        <div className="px-4 py-2 text-gray-400 text-sm">Cargando categorías...</div>
+                      ) : categorias.length > 0 ? (
+                        // Mostrar categorías principales (nivel 1) y sus hijas (nivel 2)
+                        categorias.map((categoria) => (
+                          <div key={categoria.id}>
+                            {/* Categoría principal */}
+                            <button 
+                              className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors uppercase font-semibold"
+                              onClick={() => {
+                                handleCategoryNavigation(categoria.id, categoria.nombre);
+                                setDesktopDropdown(null);
+                              }}
+                            >
+                              {categoria.nombre}
+                            </button>
+                            
+                            {/* Subcategorías (nivel 2) - con indentación */}
+                            {categoria.children && categoria.children.length > 0 && (
+                              <div className="ml-2">
+                                {categoria.children.map((subcategoria) => (
+                                  <button 
+                                    key={subcategoria.id}
+                                    className="block w-full text-left px-4 py-1 hover:bg-gray-700 transition-colors text-sm text-gray-300"
+                                    onClick={() => {
+                                      handleCategoryNavigation(subcategoria.id, subcategoria.nombre);
+                                      setDesktopDropdown(null);
+                                    }}
+                                  >
+                                    {subcategoria.nombre}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div className="px-4 py-2 text-gray-400 text-sm">No hay categorías disponibles</div>
+                      )}
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* MARCAS */}
+              {/* MARCAS - Mantengo igual que tenías */}
               <div className="relative">
                 <button 
                   className="text-white hover:text-orange-400 transition-colors py-2 flex items-center space-x-1"
@@ -406,7 +450,7 @@ const Header: React.FC = () => {
             INICIO
           </button>
 
-          {/* CATÁLOGO */}
+          {/* CATÁLOGO - Menú móvil con categorías dinámicas */}
           <div>
             <button 
               className="w-full text-left py-3 px-2 text-white hover:bg-gray-400 rounded transition-colors flex items-center justify-between"
@@ -423,87 +467,66 @@ const Header: React.FC = () => {
               </svg>
             </button>
             
-            {/* Subcategorías de CATÁLOGO */}
+            {/* Subcategorías de CATÁLOGO - Dinámicas */}
             {expandedCategory === 'catalogo' && (
               <div className="ml-4 mt-2 space-y-1">
-                {/* Conectividad - Expandible */}
-                <div>
-                  <button 
-                    className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors flex items-center justify-between"
-                    onClick={() => toggleSubCategory('conectividad')}
-                  >
-                    <span>Conectividad</span>
-                    <svg 
-                      className={`w-3 h-3 transition-transform duration-200 ${expandedSubCategory === 'conectividad' ? 'rotate-180' : ''}`} 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  
-                  {/* Subsubcategorías de Conectividad */}
-                  {expandedSubCategory === 'conectividad' && (
-                    <div className="ml-4 mt-1 space-y-1">
-                      <button 
-                        className="w-full text-left py-1.5 px-2 text-xs text-gray-300 hover:bg-gray-400 rounded transition-colors"
-                        onClick={() => handleNavigation('/catalogo')}
-                      >
-                        Módulos transceptores
-                      </button>
-                      <button 
-                        className="w-full text-left py-1.5 px-2 text-xs text-gray-300 hover:bg-gray-400 rounded transition-colors"
-                        onClick={() => handleNavigation('/catalogo')}
-                      >
-                        Patch cord fibra óptica
-                      </button>
-                      <button 
-                        className="w-full text-left py-1.5 px-2 text-xs text-gray-300 hover:bg-gray-400 rounded transition-colors"
-                        onClick={() => handleNavigation('/catalogo')}
-                      >
-                        Ver todo
-                      </button>
+                {loadingCategorias ? (
+                  <div className="py-2 px-2 text-sm text-gray-400">Cargando categorías...</div>
+                ) : categorias.length > 0 ? (
+                  categorias.map((categoria) => (
+                    <div key={categoria.id}>
+                      {/* Categoría principal - Expandible si tiene hijos */}
+                      <div>
+                        <button 
+                          className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors flex items-center justify-between"
+                          onClick={() => {
+                            if (categoria.children && categoria.children.length > 0) {
+                              toggleSubCategory(`categoria-${categoria.id}`);
+                            } else {
+                              handleCategoryNavigation(categoria.id, categoria.nombre);
+                            }
+                          }}
+                        >
+                          <span className="uppercase">{categoria.nombre}</span>
+                          {categoria.children && categoria.children.length > 0 && (
+                            <svg 
+                              className={`w-3 h-3 transition-transform duration-200 ${
+                                expandedSubCategory === `categoria-${categoria.id}` ? 'rotate-180' : ''
+                              }`} 
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          )}
+                        </button>
+                        
+                        {/* Subcategorías nivel 2 */}
+                        {expandedSubCategory === `categoria-${categoria.id}` && categoria.children && (
+                          <div className="ml-4 mt-1 space-y-1">
+                            {categoria.children.map((subcategoria) => (
+                              <button 
+                                key={subcategoria.id}
+                                className="w-full text-left py-1.5 px-2 text-xs text-gray-300 hover:bg-gray-400 rounded transition-colors"
+                                onClick={() => handleCategoryNavigation(subcategoria.id, subcategoria.nombre)}
+                              >
+                                {subcategoria.nombre}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  )}
-                </div>
-
-                {/* Video portero - No expandible */}
-                <button 
-                  className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
-                  onClick={() => handleNavigation('/catalogo')}
-                >
-                  Video portero
-                </button>
-
-                {/* Control de accesos - No expandible */}
-                <button 
-                  className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
-                  onClick={() => handleNavigation('/catalogo')}
-                >
-                  Control de accesos
-                </button>
-
-                {/* Alarmas - No expandible */}
-                <button 
-                  className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
-                  onClick={() => handleNavigation('/catalogo')}
-                >
-                  Alarmas
-                </button>
-
-                {/* Energía - No expandible */}
-                <button 
-                  className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
-                  onClick={() => handleNavigation('/catalogo')}
-                >
-                  Energía
-                </button>
+                  ))
+                ) : (
+                  <div className="py-2 px-2 text-sm text-gray-400">No hay categorías disponibles</div>
+                )}
               </div>
             )}
           </div>
 
-          {/* MARCAS */}
+          {/* MARCAS - Mantengo igual */}
           <div>
             <button 
               className="w-full text-left py-3 px-2 text-white hover:bg-gray-400 rounded transition-colors flex items-center justify-between"
