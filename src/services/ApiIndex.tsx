@@ -3,6 +3,7 @@ import { UsuariosService } from './modules/UsuariosService';
 import { ProductosService } from './modules/ProductosService';
 import { CategoriasService } from './modules/CategoriasService';
 import { ContactoService } from './modules/ContactoService';
+import { AtributosService } from './modules/AtributosService';
 
 export class ApiManager {
   private static instance: ApiManager;
@@ -13,6 +14,7 @@ export class ApiManager {
   public productos: ProductosService;
   public categorias: CategoriasService;
   public contacto: ContactoService;
+  public atributos: AtributosService;
 
   private constructor() {
     // Configuración de la API - usando la URL que funcionaba antes
@@ -33,6 +35,7 @@ export class ApiManager {
     this.productos = new ProductosService(this.apiClient);
     this.categorias = new CategoriasService(this.apiClient);
     this.contacto = new ContactoService(this.apiClient);
+    this.atributos = new AtributosService(this.apiClient);
 
     // Configurar interceptores si es necesario
     this.setupInterceptors();
@@ -105,6 +108,7 @@ export class ApiManager {
     this.productos = new ProductosService(this.apiClient);
     this.categorias = new CategoriasService(this.apiClient);
     this.contacto = new ContactoService(this.apiClient);
+    this.atributos = new AtributosService(this.apiClient);
     
     // Reconfigurar interceptores
     this.setupInterceptors();

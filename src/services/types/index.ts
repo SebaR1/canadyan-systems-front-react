@@ -147,3 +147,47 @@ export interface FiltroFecha {
   fecha_desde?: string;
   fecha_hasta?: string;
 }
+
+// Tipos para Atributo
+export interface Atributo {
+  id: number;
+  nombre: string;
+  tipo: 'text' | 'select' | 'number' | 'boolean';
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AtributoCreacion {
+  nombre: string;
+  tipo: 'text' | 'select' | 'number' | 'boolean';
+}
+
+export interface AtributoActualizacion {
+  nombre?: string;
+  tipo?: 'text' | 'select' | 'number' | 'boolean';
+}
+
+export interface ProductoAtributo {
+  producto_id: number;
+  atributo_id: number;
+  valor: string;
+  atributo_nombre?: string;
+  atributo_tipo?: string;
+}
+
+export interface AtributoConValores {
+  id: number;
+  nombre: string;
+  tipo: string;
+  valores: string[];
+}
+
+export interface FiltrosAtributos {
+  [atributoId: string]: string[];
+}
+
+// Tipos para filtros comunes
+export interface FiltroFecha {
+  fecha_desde?: string;
+  fecha_hasta?: string;
+}

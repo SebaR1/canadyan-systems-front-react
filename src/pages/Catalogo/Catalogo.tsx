@@ -1,100 +1,211 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
+import apiManager from '../../services/ApiIndex';
+import { AtributoConValores, Producto } from '../../services/types';
 
 interface FilterState {
-  marca: {
-    kingwell: boolean;
-  };
-  duplex: {
-    sfp1gb: boolean;
-    '10km': boolean;
-    '20km': boolean;
-    '40km': boolean;
-  };
-  bidi: {
-    sfp1gb: boolean;
-    '10km': boolean;
-    '20km': boolean;
-    '40km': boolean;
-    '60km': boolean;
-    '80km': boolean;
-  };
+  [atributoId: string]: { [valor: string]: boolean };
 }
 
 const Catalogo: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [sortBy, setSortBy] = useState('precio');
-  const [filters, setFilters] = useState<FilterState>({
-    marca: {
-      kingwell: false
-    },
-    duplex: {
-      sfp1gb: false,
-      '10km': false,
-      '20km': false,
-      '40km': false
-    },
-    bidi: {
-      sfp1gb: false,
-      '10km': false,
-      '20km': false,
-      '40km': false,
-      '60km': false,
-      '80km': false
-    }
-  });
+  const [filters, setFilters] = useState<FilterState>({});
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [atributos, setAtributos] = useState<AtributoConValores[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingProductos, setLoadingProductos] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Datos de ejemplo - después vendrán de la BD
-  const products = [
-    {
-      id: 1,
-      image: 'https://picsum.photos/300/200?random=1',
-      title: 'KY-PP-S31L-20D Sfp+ 10g Lr 10km Sm Lc Dúplex',
-      description: 'Módulo transceptor de fibra óptica mono modo SFP+ modelo KY-PP-S-31DLC20D, de 10 Giga bits, con conector LC/UPC dual de 1310 nm para conexiones de hasta 20 km.',
-      price: '$.........',
-      inStock: true
-    },
-    {
-      id: 2,
-      image: 'https://picsum.photos/300/200?random=2',
-      title: 'KY-PP-S31L-20D Sfp+ 10g Lr 10km Sm Lc Dúplex',
-      description: 'Módulo transceptor de fibra óptica mono modo SFP+ modelo KY-PP-S-31DLC20D, de 10 Giga bits, con conector LC/UPC dual de 1310 nm para conexiones de hasta 20 km.',
-      price: '$.........',
-      inStock: false
-    },
-      {
-      id: 3,
-      image: 'https://picsum.photos/300/200?random=2',
-      title: 'KY-PP-S31L-20D Sfp+ 10g Lr 10km Sm Lc Dúplex',
-      description: 'Módulo transceptor de fibra óptica mono modo SFP+ modelo KY-PP-S-31DLC20D, de 10 Giga bits, con conector LC/UPC dual de 1310 nm para conexiones de hasta 20 km.',
-      price: '$.........',
-      inStock: false
-    },
-      {
-      id: 4,
-      image: 'https://picsum.photos/300/200?random=2',
-      title: 'KY-PP-S31L-20D Sfp+ 10g Lr 10km Sm Lc Dúplex',
-      description: 'Módulo transceptor de fibra óptica mono modo SFP+ modelo KY-PP-S-31DLC20D, de 10 Giga bits, con conector LC/UPC dual de 1310 nm para conexiones de hasta 20 km.',
-      price: '$.........',
-      inStock: false
-    }
-  ];
+  // Cargar filtros y productos al montar el componente
+  useEffect(() => {
+    loadFiltrosYProductos();
+  }, []);
 
-  const handleFilterChange = (category: keyof FilterState, item: string) => {
+  // Recargar productos cuando cambien los filtros
+  useEffect(() => {
+    if (atributos.length > 0) {
+      loadProductos();
+    }
+  }, [filters]);
+
+  const loadFiltrosYProductos = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Cargar filtros disponibles
+      const filtrosResponse = await apiManager.atributos.obtenerFiltros();
+      
+      if (filtrosResponse.success && filtrosResponse.data) {
+        const atributosData = filtrosResponse.data.filtros;
+        setAtributos(atributosData);
+        
+        // Inicializar estado de filtros
+        const initialFilters: FilterState = {};
+        atributosData.forEach(atributo => {
+          initialFilters[atributo.id.toString()] = {};
+          atributo.valores.forEach(valor => {
+            initialFilters[atributo.id.toString()][valor] = false;
+          });
+        });
+        setFilters(initialFilters);
+        
+        // Cargar productos iniciales
+        await loadProductosIniciales();
+      } else {
+        setError(filtrosResponse.error || 'Error al cargar filtros');
+      }
+    } catch (error) {
+      console.error('Error loading filters and products:', error);
+      setError('Error de conexión al cargar el catálogo');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadProductosIniciales = async () => {
+    try {
+      const categoriaId = searchParams.get('categoria');
+      let productos: Producto[] = [];
+
+      if (categoriaId) {
+        // Filtrar por categoría
+        const response = await apiManager.productos.obtenerPorCategoria(parseInt(categoriaId));
+        if (response.success && response.data) {
+          productos = response.data.items || response.data.productos || [];
+        }
+      } else {
+        // Cargar todos los productos
+        const response = await apiManager.productos.listar({ limit: 50 });
+        if (response.success && response.data) {
+          productos = response.data.items || response.data.productos || [];
+        }
+      }
+
+      setProductos(productos);
+    } catch (error) {
+      console.error('Error loading initial products:', error);
+    }
+  };
+
+  const loadProductos = async () => {
+    try {
+      setLoadingProductos(true);
+      
+      // Obtener filtros activos
+      const filtrosActivos = getFiltrosActivos();
+      
+      let productos: Producto[] = [];
+
+      if (Object.keys(filtrosActivos).length > 0) {
+        // Filtrar por atributos
+        const response = await apiManager.atributos.filtrarProductosSimple(filtrosActivos, 1, 50);
+        
+        if (response.success && response.data) {
+          productos = response.data.productos;
+        }
+      } else {
+        // Cargar productos iniciales sin filtros
+        await loadProductosIniciales();
+        return;
+      }
+
+      setProductos(productos);
+      
+    } catch (error) {
+      console.error('Error filtering products:', error);
+    } finally {
+      setLoadingProductos(false);
+    }
+  };
+
+  const getFiltrosActivos = (): Record<string, string[]> => {
+    const filtrosActivos: Record<string, string[]> = {};
+    
+    Object.entries(filters).forEach(([atributoId, valores]) => {
+      const valoresActivos = Object.entries(valores)
+        .filter(([_, activo]) => activo)
+        .map(([valor, _]) => valor);
+      
+      if (valoresActivos.length > 0) {
+        filtrosActivos[atributoId] = valoresActivos;
+      }
+    });
+    
+    return filtrosActivos;
+  };
+
+  const handleFilterChange = (atributoId: string, valor: string) => {
     setFilters(prev => ({
       ...prev,
-      [category]: {
-        ...prev[category],
-        [item]: !prev[category][item as keyof typeof prev[typeof category]]
+      [atributoId]: {
+        ...prev[atributoId],
+        [valor]: !prev[atributoId][valor]
       }
     }));
+  };
+
+  const clearFilters = () => {
+    const clearedFilters: FilterState = {};
+    Object.keys(filters).forEach(atributoId => {
+      clearedFilters[atributoId] = {};
+      Object.keys(filters[atributoId]).forEach(valor => {
+        clearedFilters[atributoId][valor] = false;
+      });
+    });
+    setFilters(clearedFilters);
   };
 
   const toggleMobileFilters = () => {
     setShowMobileFilters(!showMobileFilters);
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <main className="min-h-screen bg-gray-50">
+          <div className="max-w-7xl mx-auto py-4">
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p className="text-gray-600">Cargando catálogo...</p>
+              </div>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <>
+        <Header />
+        <main className="min-h-screen bg-gray-50">
+          <div className="max-w-7xl mx-auto py-4">
+            <div className="text-center text-red-600 p-8">
+              <p>Error: {error}</p>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="mt-4 bg-orange-500 text-white px-4 py-2 rounded hover:bg-orange-600"
+              >
+                Recargar página
+              </button>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>
@@ -112,10 +223,12 @@ const Catalogo: React.FC = () => {
               <Link to="/catalogo" className="hover:text-orange-500 transition-colors">
                 Catálogo
               </Link>
-              <span>&gt;</span>
-              <span className="text-gray-400">Conectividad</span>
-              <span>&gt;</span>
-              <span className="text-gray-900 font-medium">Módulos transceptores</span>
+              {searchParams.get('nombre') && (
+                <>
+                  <span>&gt;</span>
+                  <span className="text-gray-900 font-medium">{searchParams.get('nombre')}</span>
+                </>
+              )}
             </div>
           </nav>
 
@@ -125,139 +238,44 @@ const Catalogo: React.FC = () => {
             <aside className="hidden lg:block w-64 flex-shrink-0">
               <div className="bg-white rounded-lg p-4 shadow-sm">
                 
-                {/* Catálogo */}
-                <div className="mb-6">
-                  <h3 className="font-bold text-sm text-gray-900 mb-2">Catálogo</h3>
-                  <div className="text-sm text-orange-500 font-medium">CONECTIVIDAD</div>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-sm text-gray-900">Filtros</h3>
+                  <button
+                    onClick={clearFilters}
+                    className="text-xs text-orange-500 hover:text-orange-700"
+                  >
+                    Limpiar
+                  </button>
                 </div>
 
-                {/* Subcategoría */}
-                <div className="mb-6">
-                  <h3 className="font-bold text-sm text-gray-900 mb-2">Subcategoría</h3>
-                  <div className="text-xs text-gray-700 font-medium">MÓDULOS TRANSCEPTORES</div>
-                </div>
-
-                {/* Marca */}
-                <div className="mb-6">
-                  <h3 className="font-bold text-sm text-gray-900 mb-3">Marca</h3>
-                  <label className="flex items-center space-x-2 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={filters.marca.kingwell}
-                      onChange={() => handleFilterChange('marca', 'kingwell')}
-                      className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                    />
-                    <span>Kingwell</span>
-                  </label>
-                </div>
-
-                {/* DUPLEX */}
-                <div className="mb-6">
-                  <h3 className="font-bold text-sm text-orange-500 mb-3">DUPLEX</h3>
-                  <div className="space-y-2">
-                    <label className="flex items-center space-x-2 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={filters.duplex.sfp1gb}
-                        onChange={() => handleFilterChange('duplex', 'sfp1gb')}
-                        className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                      />
-                      <span>SFP 1GB</span>
-                    </label>
-                    <div className="ml-6 space-y-1">
-                      <label className="flex items-center space-x-2 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.duplex['10km']}
-                          onChange={() => handleFilterChange('duplex', '10km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>10KM</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.duplex['20km']}
-                          onChange={() => handleFilterChange('duplex', '20km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>20KM</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.duplex['40km']}
-                          onChange={() => handleFilterChange('duplex', '40km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>40KM</span>
-                      </label>
+                {/* Filtros dinámicos */}
+                {atributos.map((atributo) => (
+                  <div key={atributo.id} className="mb-6">
+                    <h3 className="font-bold text-sm text-orange-500 mb-3 uppercase">
+                      {atributo.nombre}
+                    </h3>
+                    <div className="space-y-2">
+                      {atributo.valores.map((valor) => (
+                        <label key={valor} className="flex items-center space-x-2 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={filters[atributo.id.toString()]?.[valor] || false}
+                            onChange={() => handleFilterChange(atributo.id.toString(), valor)}
+                            className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                          />
+                          <span className="text-gray-600">{valor}</span>
+                        </label>
+                      ))}
                     </div>
                   </div>
-                </div>
+                ))}
 
-                {/* BIDI */}
-                <div className="mb-6">
-                  <h3 className="font-bold text-sm text-orange-500 mb-3">BIDI</h3>
-                  <div className="space-y-2">
-                    <label className="flex items-center space-x-2 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={filters.bidi.sfp1gb}
-                        onChange={() => handleFilterChange('bidi', 'sfp1gb')}
-                        className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                      />
-                      <span>SFP 1GB</span>
-                    </label>
-                    <div className="ml-6 space-y-1">
-                      <label className="flex items-center space-x-2 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.bidi['10km']}
-                          onChange={() => handleFilterChange('bidi', '10km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>10KM</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.bidi['20km']}
-                          onChange={() => handleFilterChange('bidi', '20km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>20KM</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.bidi['40km']}
-                          onChange={() => handleFilterChange('bidi', '40km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>40KM</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.bidi['60km']}
-                          onChange={() => handleFilterChange('bidi', '60km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>60KM</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-xs text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.bidi['80km']}
-                          onChange={() => handleFilterChange('bidi', '80km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>80KM</span>
-                      </label>
-                    </div>
+                {/* Mostrar mensaje si no hay filtros */}
+                {atributos.length === 0 && (
+                  <div className="text-center text-gray-500 text-sm py-4">
+                    No hay filtros disponibles
                   </div>
-                </div>
+                )}
               </div>
             </aside>
 
@@ -278,6 +296,11 @@ const Catalogo: React.FC = () => {
                   <span>Filtrar</span>
                 </button>
 
+                {/* Información de resultados */}
+                <div className="text-sm text-gray-600">
+                  {loadingProductos ? 'Filtrando...' : `${productos.length} productos`}
+                </div>
+
                 {/* Ordenar por */}
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-gray-700">Ordenar por:</span>
@@ -295,49 +318,68 @@ const Catalogo: React.FC = () => {
               </div>
 
               {/* Grid de productos */}
-              <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-6">
-                {products.map((product) => (
-                  <div key={product.id} className="bg-white rounded-2xl border-2 border-gray-300 p-4 shadow-sm">
-                    
-                    {/* Imagen */}
-                    <div className="flex justify-center mb-4">
-                      <img
-                        src={product.image}
-                        alt={product.title}
-                        className="w-full h-32 object-contain"
-                      />
-                    </div>
-
-                    {/* Título */}
-                    <h3 className="text-gray-800 font-semibold text-sm mb-2 leading-5">
-                      {product.title}
-                    </h3>
-
-                    {/* Descripción */}
-                    <p className="text-gray-600 text-xs mb-4 leading-4">
-                      {product.description}
-                    </p>
-
-                    {/* Precio */}
-                    <div className="text-gray-800 font-medium text-sm mb-4">
-                      {product.price}
-                    </div>
-
-                    {/* Botón */}
-                    <div className="flex justify-center">
-                      {product.inStock ? (
-                        <button className="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-semibold py-2 px-6 rounded-full transition-colors duration-200 touch-manipulation text-sm">
-                          VER MÁS
-                        </button>
-                      ) : (
-                        <button className="bg-black text-white font-semibold py-2 px-6 rounded-full text-sm cursor-not-allowed">
-                          SIN STOCK
-                        </button>
-                      )}
-                    </div>
+              {loadingProductos ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="text-center">
+                    <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                    <p className="text-gray-600">Filtrando productos...</p>
                   </div>
-                ))}
-              </div>
+                </div>
+              ) : productos.length === 0 ? (
+                <div className="text-center py-12">
+                  <p className="text-gray-600">No se encontraron productos con los filtros seleccionados.</p>
+                  <button
+                    onClick={clearFilters}
+                    className="mt-4 text-orange-500 hover:text-orange-700 text-sm underline"
+                  >
+                    Limpiar filtros
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-6">
+                  {productos.map((producto) => (
+                    <div key={producto.id} className="bg-white rounded-2xl border-2 border-gray-300 p-4 shadow-sm">
+                      
+                      {/* Imagen */}
+                      <div className="flex justify-center mb-4">
+                        <img
+                          src={producto.imagen_url || `https://picsum.photos/300/200?random=${producto.id}`}
+                          alt={producto.nombre}
+                          className="w-full h-32 object-contain"
+                        />
+                      </div>
+
+                      {/* Título */}
+                      <h3 className="text-gray-800 font-semibold text-sm mb-2 leading-5">
+                        {producto.nombre}
+                      </h3>
+
+                      {/* Descripción */}
+                      <p className="text-gray-600 text-xs mb-4 leading-4">
+                        {producto.descripcion}
+                      </p>
+
+                      {/* Precio */}
+                      <div className="text-gray-800 font-medium text-sm mb-4">
+                        {producto.precio ? `$${producto.precio.toFixed(2)}` : '$..........'}
+                      </div>
+
+                      {/* Botón */}
+                      <div className="flex justify-center">
+                        {producto.stock > 0 ? (
+                          <button className="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-semibold py-2 px-6 rounded-full transition-colors duration-200 touch-manipulation text-sm">
+                            VER MÁS
+                          </button>
+                        ) : (
+                          <button className="bg-black text-white font-semibold py-2 px-6 rounded-full text-sm cursor-not-allowed">
+                            SIN STOCK
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -367,135 +409,34 @@ const Catalogo: React.FC = () => {
                 </button>
               </div>
               
-              {/* Contenido de filtros - igual que el sidebar */}
+              {/* Contenido de filtros dinámicos */}
               <div className="space-y-6">
-                {/* Marca */}
-                <div>
-                  <h4 className="font-bold text-sm text-gray-900 mb-3">Marca</h4>
-                  <label className="flex items-center space-x-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={filters.marca.kingwell}
-                      onChange={() => handleFilterChange('marca', 'kingwell')}
-                      className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                    />
-                    <span>Kingwell</span>
-                  </label>
-                </div>
-
-                {/* DUPLEX */}
-                <div>
-                  <h4 className="font-bold text-sm text-orange-500 mb-3">DUPLEX</h4>
-                  <div className="space-y-2">
-                    <label className="flex items-center space-x-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={filters.duplex.sfp1gb}
-                        onChange={() => handleFilterChange('duplex', 'sfp1gb')}
-                        className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                      />
-                      <span>SFP 1GB</span>
-                    </label>
-                    <div className="ml-6 space-y-2">
-                      <label className="flex items-center space-x-2 text-sm text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.duplex['10km']}
-                          onChange={() => handleFilterChange('duplex', '10km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>10KM</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-sm text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.duplex['20km']}
-                          onChange={() => handleFilterChange('duplex', '20km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>20KM</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-sm text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.duplex['40km']}
-                          onChange={() => handleFilterChange('duplex', '40km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>40KM</span>
-                      </label>
+                {atributos.map((atributo) => (
+                  <div key={atributo.id}>
+                    <h4 className="font-bold text-sm text-orange-500 mb-3 uppercase">
+                      {atributo.nombre}
+                    </h4>
+                    <div className="space-y-2">
+                      {atributo.valores.map((valor) => (
+                        <label key={valor} className="flex items-center space-x-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={filters[atributo.id.toString()]?.[valor] || false}
+                            onChange={() => handleFilterChange(atributo.id.toString(), valor)}
+                            className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                          />
+                          <span className="text-gray-600">{valor}</span>
+                        </label>
+                      ))}
                     </div>
                   </div>
-                </div>
-
-                {/* BIDI */}
-                <div>
-                  <h4 className="font-bold text-sm text-orange-500 mb-3">BIDI</h4>
-                  <div className="space-y-2">
-                    <label className="flex items-center space-x-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={filters.bidi.sfp1gb}
-                        onChange={() => handleFilterChange('bidi', 'sfp1gb')}
-                        className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                      />
-                      <span>SFP 1GB</span>
-                    </label>
-                    <div className="ml-6 space-y-2">
-                      <label className="flex items-center space-x-2 text-sm text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.bidi['10km']}
-                          onChange={() => handleFilterChange('bidi', '10km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>10KM</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-sm text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.bidi['20km']}
-                          onChange={() => handleFilterChange('bidi', '20km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>20KM</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-sm text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.bidi['40km']}
-                          onChange={() => handleFilterChange('bidi', '40km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>40KM</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-sm text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.bidi['60km']}
-                          onChange={() => handleFilterChange('bidi', '60km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>60KM</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-sm text-gray-600">
-                        <input
-                          type="checkbox"
-                          checked={filters.bidi['80km']}
-                          onChange={() => handleFilterChange('bidi', '80km')}
-                          className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                        />
-                        <span>80KM</span>
-                      </label>
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
 
               {/* Botones del modal */}
               <div className="flex gap-3 mt-6 pt-4 border-t">
                 <button 
-                  onClick={toggleMobileFilters}
+                  onClick={clearFilters}
                   className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-lg font-medium"
                 >
                   Limpiar filtros
