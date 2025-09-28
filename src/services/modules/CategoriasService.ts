@@ -15,8 +15,8 @@ export class CategoriasService {
   }
 
   // Listar categorías - ✅ CORREGIDO
-  async listar(params?: PaginacionParams): Promise<ApiResponse<ListaRespuesta<Categoria>>> {
-    return this.apiClient.get<ListaRespuesta<Categoria>>('/api/routes/categorias.php?action=list', params);
+  async listar(params?: PaginacionParams): Promise<ApiResponse<{ categorias: Categoria[], total: number }>> {
+    return this.apiClient.get<{ categorias: Categoria[], total: number }>('/api/routes/categorias.php?action=list', params);
   }
 
   // Obtener todas las categorías activas - ✅ CORREGIDO

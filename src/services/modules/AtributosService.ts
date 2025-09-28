@@ -44,8 +44,12 @@ export class AtributosService {
   }
 
   // Obtener filtros para el catálogo (atributos con sus valores únicos)
-  async obtenerFiltros(): Promise<ApiResponse<{ filtros: AtributoConValores[] }>> {
-    return this.apiClient.get<{ filtros: AtributoConValores[] }>('/api/routes/atributos.php?action=filters');
+  async obtenerFiltros(categoriaId?: number): Promise<ApiResponse<{ filtros: AtributoConValores[] }>> {
+    let url = '/api/routes/atributos.php?action=filters';
+    if (categoriaId) {
+      url += `&categoria_id=${categoriaId}`;
+    }
+    return this.apiClient.get<{ filtros: AtributoConValores[] }>(url);
   }
 
   // Asignar atributos a un producto

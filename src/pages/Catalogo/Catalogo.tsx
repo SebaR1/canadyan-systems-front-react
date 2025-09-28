@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import apiManager from '../../services/ApiIndex';
-import { AtributoConValores, Producto } from '../../services/types';
+import { AtributoConValores, Producto, Categoria } from '../../services/types';
 
 interface FilterState {
   [atributoId: string]: { [valor: string]: boolean };
@@ -26,6 +26,54 @@ const Catalogo: React.FC = () => {
     padre_nombre?: string;
   } | null>(null);
 
+  // NUEVOS ESTADOS para subcategorías
+  const [subcategorias, setSubcategorias] = useState<Categoria[]>([]);
+  const [subcategoriaSeleccionada, setSubcategoriaSeleccionada] = useState<number | null>(null);
+
+  // FUNCIÓN HELPER PARA FORMATEAR PRECIO
+  const formatearPrecio = (precio: any): string => {
+    if (!precio || precio === '' || precio === null || precio === undefined) {
+      return '$..........';
+    }
+    
+    const precioNumerico = typeof precio === 'string' ? parseFloat(precio) : precio;
+    
+    if (isNaN(precioNumerico) || precioNumerico < 0) {
+      return '$..........';
+    }
+    
+    return `$${precioNumerico.toFixed(2)}`;
+  };
+
+  const loadSubcategorias = useCallback(async (categoriaId: number) => {
+    try {
+      console.log('=== INICIANDO loadSubcategorias con ID:', categoriaId);
+      const response = await apiManager.categorias.listar();
+      if (response.success && response.data) {
+        const todasCategorias = response.data.categorias;
+        console.log('Total categorías disponibles:', todasCategorias.length);
+        
+        const subcategorias = [];
+        
+        for (const cat of todasCategorias) {
+          console.log(`Revisando: ${cat.nombre} (ID: ${cat.id}, parent_id: ${cat.parent_id})`);
+          // ARREGLO: Usar Number() para asegurar que ambos sean del mismo tipo
+          if (Number(cat.parent_id) === Number(categoriaId)) {
+            console.log(`  --> MATCH! Agregando: ${cat.nombre}`);
+            subcategorias.push(cat);
+          }
+        }
+        
+        console.log(`=== RESULTADO FINAL: ${subcategorias.length} subcategorías para categoría ${categoriaId}`);
+        setSubcategorias(subcategorias);
+      }
+    } catch (error) {
+      console.error('Error loading subcategorías:', error);
+      setSubcategorias([]);
+    }
+  }, []);
+
+  // FUNCIÓN MODIFICADA: loadProductosIniciales
   const loadProductosIniciales = useCallback(async () => {
     try {
       const categoriaId = searchParams.get('categoria');
@@ -42,7 +90,8 @@ const Catalogo: React.FC = () => {
           if (categoria.parent_id) {
             const padreResponse = await apiManager.categorias.obtenerPorId(categoria.parent_id);
             if (padreResponse.success && padreResponse.data) {
-            padre_nombre = padreResponse.data.categoria.nombre;            }
+              padre_nombre = padreResponse.data.categoria.nombre;            
+            }
           }
           
           setCategoriaActual({
@@ -51,16 +100,58 @@ const Catalogo: React.FC = () => {
             parent_id: categoria.parent_id,
             padre_nombre: padre_nombre
           });
+
+          if (!categoria.parent_id) {
+            // Si es categoría padre, cargar sus subcategorías
+            console.log('Categoría padre encontrada:', categoria.id, categoria.nombre);
+            await loadSubcategorias(categoria.id);
+          } else {
+            // Si es subcategoría, cargar las subcategorías del padre
+            console.log('Subcategoría encontrada:', categoria.nombre, 'del padre:', categoria.parent_id);
+            await loadSubcategorias(categoria.parent_id);
+          }
         }
         
-        // SEGUNDO: Filtrar productos por categoría
+      // SEGUNDO: Filtrar productos por categoría
+      if (subcategoriaSeleccionada) {
+        // Subcategoría específica seleccionada desde dropdown
+        const response = await apiManager.productos.obtenerPorCategoria(subcategoriaSeleccionada);
+        if (response.success && response.data) {
+          productos = response.data.productos || [];
+        }
+      } else if (categoriaResponse.success && categoriaResponse.data && !categoriaResponse.data.categoria.parent_id && subcategorias.length > 0) {
+        // Solo si es categoría PADRE y hay subcategorías (para "Todas las subcategorías")
+        const productosPromises = subcategorias.map(sub => 
+          apiManager.productos.obtenerPorCategoria(sub.id)
+        );
+
+        console.log('🟢 Cargando productos de TODAS las subcategorías');
+        
+        const responses = await Promise.all(productosPromises);
+        const todosLosProductos = [];
+        
+        for (const response of responses) {
+          if (response.success && response.data) {
+            todosLosProductos.push(...(response.data.productos || []));
+          }
+        }
+        
+        productos = todosLosProductos;
+      } else {
+        // Categoría individual (tanto padre como hija)
+        console.log('🟢 Cargando productos de categoría específica:', categoriaId);
         const response = await apiManager.productos.obtenerPorCategoria(parseInt(categoriaId));
         if (response.success && response.data) {
           productos = response.data.productos || [];
         }
+      }
+
       } else {
-        // Si no hay categoría, limpiar categoriaActual
+        
+        // Si no hay categoría, limpiar todo
         setCategoriaActual(null);
+        setSubcategorias([]);
+        setSubcategoriaSeleccionada(null);
         
         // Cargar todos los productos
         const response = await apiManager.productos.listar({ limit: 50 });
@@ -73,7 +164,8 @@ const Catalogo: React.FC = () => {
     } catch (error) {
       console.error('Error loading initial products:', error);
     }
-  }, [searchParams]);
+  }, [searchParams, subcategoriaSeleccionada, loadSubcategorias]);
+
 
   // Función para obtener filtros activos
   const getFiltrosActivos = useCallback((): Record<string, string[]> => {
@@ -124,14 +216,29 @@ const Catalogo: React.FC = () => {
     }
   }, [getFiltrosActivos, loadProductosIniciales]);
 
-  // Función para cargar filtros y productos iniciales
+  // FUNCIÓN MODIFICADA: loadFiltrosYProductos
   const loadFiltrosYProductos = useCallback(async () => {
+      console.log('🔵 INICIO loadFiltrosYProductos');
+  console.log('🔵 subcategorias.length:', subcategorias.length);
+
     try {
       setLoading(true);
       setError(null);
       
-      // Cargar filtros disponibles
-      const filtrosResponse = await apiManager.atributos.obtenerFiltros();
+      // PRIMERO: Cargar productos iniciales (esto ya carga las subcategorías)
+          console.log('🔵 Llamando loadProductosIniciales...');
+
+
+      await loadProductosIniciales();
+      
+          console.log('🔵 Después de loadProductosIniciales, subcategorias.length:', subcategorias.length);
+
+      // SEGUNDO: Determinar qué categoría usar para los filtros (después de cargar subcategorías)
+      const categoriaId = searchParams.get('categoria');
+      const categoriaParaFiltros = subcategoriaSeleccionada || (categoriaId ? parseInt(categoriaId) : null);
+      
+      // TERCERO: Cargar filtros disponibles
+      const filtrosResponse = await apiManager.atributos.obtenerFiltros(categoriaParaFiltros || undefined);
       
       if (filtrosResponse.success && filtrosResponse.data) {
         const atributosData = filtrosResponse.data.filtros;
@@ -146,9 +253,6 @@ const Catalogo: React.FC = () => {
           });
         });
         setFilters(initialFilters);
-        
-        // Cargar productos iniciales
-        await loadProductosIniciales();
       } else {
         setError(filtrosResponse.error || 'Error al cargar filtros');
       }
@@ -158,7 +262,16 @@ const Catalogo: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [loadProductosIniciales]);
+  }, [loadProductosIniciales, searchParams, subcategoriaSeleccionada]);
+
+  // NUEVA FUNCIÓN: Manejar cambio de subcategoría
+  const handleSubcategoriaChange = (subcategoriaId: string) => {
+    const newSubcategoriaId = subcategoriaId === '' ? null : parseInt(subcategoriaId);
+    setSubcategoriaSeleccionada(newSubcategoriaId);
+    
+    // Limpiar filtros actuales
+    clearFilters();
+  };
 
   // Cargar filtros y productos al montar el componente
   useEffect(() => {
@@ -289,6 +402,25 @@ const Catalogo: React.FC = () => {
             <aside className="hidden lg:block w-64 flex-shrink-0">
               <div className="bg-white rounded-lg p-4 shadow-sm">
                 
+                {/* NUEVO: Selector de subcategorías */}
+                {subcategorias.length > 0 && (
+                  <div className="mb-6 pb-4 border-b border-gray-200">
+                    <h3 className="font-bold text-sm text-gray-900 mb-3">Subcategoría</h3>
+                    <select
+                      value={subcategoriaSeleccionada || ''}
+                      onChange={(e) => handleSubcategoriaChange(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 bg-orange-50"
+                    >
+                      <option value="">Todas las subcategorías</option>
+                      {subcategorias.map((subcategoria) => (
+                        <option key={subcategoria.id} value={subcategoria.id}>
+                          {subcategoria.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold text-sm text-gray-900">Filtros</h3>
                   <button
@@ -350,6 +482,11 @@ const Catalogo: React.FC = () => {
                 {/* Información de resultados */}
                 <div className="text-sm text-gray-600">
                   {loadingProductos ? 'Filtrando...' : `${productos.length} productos`}
+                  {subcategoriaSeleccionada && (
+                    <span className="ml-1 text-orange-600">
+                      • {subcategorias.find(s => s.id === subcategoriaSeleccionada)?.nombre}
+                    </span>
+                  )}
                 </div>
 
                 {/* Ordenar por */}
@@ -410,14 +547,14 @@ const Catalogo: React.FC = () => {
                         {producto.descripcion}
                       </p>
 
-                      {/* Precio */}
+                      {/* Precio - CON FUNCIÓN HELPER */}
                       <div className="text-gray-800 font-medium text-sm mb-4">
-                        {producto.precio ? `$${producto.precio.toFixed(2)}` : '$..........'}
+                        {formatearPrecio(producto.precio)}
                       </div>
 
                       {/* Botón */}
                       <div className="flex justify-center">
-                        {producto.stock > 0 ? (
+                        {(producto.stock && producto.stock > 0) ? (
                           <button className="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-semibold py-2 px-6 rounded-full transition-colors duration-200 touch-manipulation text-sm">
                             VER MÁS
                           </button>
@@ -459,6 +596,25 @@ const Catalogo: React.FC = () => {
                   </svg>
                 </button>
               </div>
+              
+              {/* NUEVO: Selector de subcategorías en mobile */}
+              {subcategorias.length > 0 && (
+                <div className="mb-6 pb-4 border-b">
+                  <h4 className="font-bold text-sm text-gray-900 mb-3">Subcategoría</h4>
+                  <select
+                    value={subcategoriaSeleccionada || ''}
+                    onChange={(e) => handleSubcategoriaChange(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 bg-orange-50"
+                  >
+                    <option value="">Todas las subcategorías</option>
+                    {subcategorias.map((subcategoria) => (
+                      <option key={subcategoria.id} value={subcategoria.id}>
+                        {subcategoria.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               
               {/* Contenido de filtros dinámicos */}
               <div className="space-y-6">
