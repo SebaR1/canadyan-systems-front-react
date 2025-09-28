@@ -108,230 +108,273 @@ const Catalogo: React.FC = () => {
     clearFilters();
   };
 
-useEffect(() => {
-  const loadAllData = async () => {
-    console.log('🔵 CARGA ÚNICA - useEffect principal');
-    setLoading(true);
-    setError(null);
+  useEffect(() => {
+    const loadAllData = async () => {
+      console.log('🔵 CARGA ÚNICA - useEffect principal');
+      setLoading(true);
+      setError(null);
 
-    try {
-      // 1. Determinar categoría de la URL
-      let categoriaId: string | null = null;
-      
-      if (categoriaSlug) {
-        const categoria = subcategoriaSlug 
-          ? await obtenerCategoriaPorSlug(subcategoriaSlug)
-          : await obtenerCategoriaPorSlug(categoriaSlug);
+      try {
+        // 1. Determinar categoría de la URL
+        let categoriaId: string | null = null;
         
-        if (categoria) categoriaId = categoria.id.toString();
-      }
-      
-      if (!categoriaId) {
-        categoriaId = searchParams.get('categoria');
-      }
-
-      let productos: Producto[] = [];
-
-      // 2. Cargar datos de categoría y productos
-      if (categoriaId) {
-        const categoriaResponse = await apiManager.categorias.obtenerPorId(parseInt(categoriaId));
+        if (categoriaSlug) {
+          const categoria = subcategoriaSlug 
+            ? await obtenerCategoriaPorSlug(subcategoriaSlug)
+            : await obtenerCategoriaPorSlug(categoriaSlug);
+          
+          if (categoria) categoriaId = categoria.id.toString();
+        }
         
-        if (categoriaResponse.success && categoriaResponse.data) {
-          const categoria = categoriaResponse.data.categoria;
-          
-          // Obtener nombre del padre si existe
-          let padre_nombre = undefined;
-          if (categoria.parent_id) {
-            const padreResponse = await apiManager.categorias.obtenerPorId(categoria.parent_id);
-            if (padreResponse.success && padreResponse.data) {
-              padre_nombre = padreResponse.data.categoria.nombre;            
-            }
-          }
-          
-          setCategoriaActual({
-            id: categoria.id,
-            nombre: categoria.nombre,
-            parent_id: categoria.parent_id,
-            padre_nombre: padre_nombre
-          });
+        if (!categoriaId) {
+          categoriaId = searchParams.get('categoria');
+        }
 
-          // Cargar subcategorías si es necesario
-          if (!categoria.parent_id) {
-            // Es categoría padre - cargar subcategorías
-            const categoriasResponse = await apiManager.categorias.listar();
-            if (categoriasResponse.success && categoriasResponse.data) {
-              const subs = categoriasResponse.data.categorias.filter(
-                (cat: Categoria) => Number(cat.parent_id) === Number(categoria.id)
-              );
-              setSubcategorias(subs);
-              
-              // Cargar productos de todas las subcategorías
-              if (subs.length > 0) {
-                const productosPromises = subs.map(sub => 
-                  apiManager.productos.obtenerPorCategoria(sub.id)
-                );
-                const productosResponses = await Promise.all(productosPromises);
-                
-                for (const prodResponse of productosResponses) {
-                  if (prodResponse.success && prodResponse.data) {
-                    productos.push(...(prodResponse.data.productos || []));
-                  }
-                }
-              } else {
-                // Si no hay subcategorías, cargar productos de la categoría padre
-                const productosResponse = await apiManager.productos.obtenerPorCategoria(categoria.id);
-                if (productosResponse.success && productosResponse.data) {
-                  productos = productosResponse.data.productos || [];
-                }
+        let productos: Producto[] = [];
+
+        // 2. Cargar datos de categoría y productos
+        if (categoriaId) {
+          const categoriaResponse = await apiManager.categorias.obtenerPorId(parseInt(categoriaId));
+          
+          if (categoriaResponse.success && categoriaResponse.data) {
+            const categoria = categoriaResponse.data.categoria;
+            
+            // Obtener nombre del padre si existe
+            let padre_nombre = undefined;
+            if (categoria.parent_id) {
+              const padreResponse = await apiManager.categorias.obtenerPorId(categoria.parent_id);
+              if (padreResponse.success && padreResponse.data) {
+                padre_nombre = padreResponse.data.categoria.nombre;            
               }
             }
-            setSubcategoriaSeleccionada(null);
             
-          } else {
-            // Es subcategoría - cargar subcategorías del padre
-            const subcategoriasResponse = await apiManager.categorias.listar();
-            if (subcategoriasResponse.success && subcategoriasResponse.data) {
-              const subs = subcategoriasResponse.data.categorias.filter(
-                (cat: Categoria) => Number(cat.parent_id) === Number(categoria.parent_id)
-              );
-              setSubcategorias(subs);
-            }
-            setSubcategoriaSeleccionada(categoria.id);
-            
-            // Cargar productos de esta subcategoría específica
-            const productosResponse = await apiManager.productos.obtenerPorCategoria(categoria.id);
-            if (productosResponse.success && productosResponse.data) {
-              productos = productosResponse.data.productos || [];
+            setCategoriaActual({
+              id: categoria.id,
+              nombre: categoria.nombre,
+              parent_id: categoria.parent_id,
+              padre_nombre: padre_nombre
+            });
+
+            // Cargar subcategorías si es necesario
+            if (!categoria.parent_id) {
+              // Es categoría padre - cargar subcategorías
+              const categoriasResponse = await apiManager.categorias.listar();
+              if (categoriasResponse.success && categoriasResponse.data) {
+                const subs = categoriasResponse.data.categorias.filter(
+                  (cat: Categoria) => Number(cat.parent_id) === Number(categoria.id)
+                );
+                setSubcategorias(subs);
+                
+                // Cargar productos de todas las subcategorías
+                if (subs.length > 0) {
+                  const productosPromises = subs.map(sub => 
+                    apiManager.productos.obtenerPorCategoria(sub.id)
+                  );
+                  const productosResponses = await Promise.all(productosPromises);
+                  
+                  for (const prodResponse of productosResponses) {
+                    if (prodResponse.success && prodResponse.data) {
+                      productos.push(...(prodResponse.data.productos || []));
+                    }
+                  }
+                } else {
+                  // Si no hay subcategorías, cargar productos de la categoría padre
+                  const productosResponse = await apiManager.productos.obtenerPorCategoria(categoria.id);
+                  if (productosResponse.success && productosResponse.data) {
+                    productos = productosResponse.data.productos || [];
+                  }
+                }
+              }
+              setSubcategoriaSeleccionada(null);
+              
+            } else {
+              // Es subcategoría - cargar subcategorías del padre
+              const subcategoriasResponse = await apiManager.categorias.listar();
+              if (subcategoriasResponse.success && subcategoriasResponse.data) {
+                const subs = subcategoriasResponse.data.categorias.filter(
+                  (cat: Categoria) => Number(cat.parent_id) === Number(categoria.parent_id)
+                );
+                setSubcategorias(subs);
+              }
+              setSubcategoriaSeleccionada(categoria.id);
+              
+              // Cargar productos de esta subcategoría específica
+              const productosResponse = await apiManager.productos.obtenerPorCategoria(categoria.id);
+              if (productosResponse.success && productosResponse.data) {
+                productos = productosResponse.data.productos || [];
+              }
             }
           }
+          
+        } else {
+          // Sin categoría - limpiar y cargar todo
+          setCategoriaActual(null);
+          setSubcategorias([]);
+          setSubcategoriaSeleccionada(null);
+          
+          const todosProductosResponse = await apiManager.productos.listar({ limit: 50 });
+          if (todosProductosResponse.success && todosProductosResponse.data) {
+            productos = todosProductosResponse.data.productos || [];
+          }
         }
-        
-      } else {
-        // Sin categoría - limpiar y cargar todo
-        setCategoriaActual(null);
-        setSubcategorias([]);
-        setSubcategoriaSeleccionada(null);
-        
-        const todosProductosResponse = await apiManager.productos.listar({ limit: 50 });
-        if (todosProductosResponse.success && todosProductosResponse.data) {
-          productos = todosProductosResponse.data.productos || [];
-        }
-      }
 
-      setProductos(productos);
-      console.log('🔍 Productos encontrados para categoría padre:', productos.length);
+        setProductos(productos);
+        console.log('🔍 Productos encontrados para categoría padre:', productos.length);
 
-      
-      // 3. Cargar filtros
-      const categoriaParaFiltros = categoriaId ? parseInt(categoriaId) : null;
-      const filtrosResponse = await apiManager.atributos.obtenerFiltros(categoriaParaFiltros || undefined);
-      
-      if (filtrosResponse.success && filtrosResponse.data) {
-        const atributosData = filtrosResponse.data.filtros;
-        setAtributos(atributosData);
         
-        const initialFilters: FilterState = {};
-        atributosData.forEach(atributo => {
-          initialFilters[atributo.id.toString()] = {};
-          atributo.valores.forEach(valor => {
-            initialFilters[atributo.id.toString()][valor] = false;
+        // 3. Cargar filtros
+        const categoriaParaFiltros = categoriaId ? parseInt(categoriaId) : null;
+        const filtrosResponse = await apiManager.atributos.obtenerFiltros(categoriaParaFiltros || undefined);
+        
+        if (filtrosResponse.success && filtrosResponse.data) {
+          const atributosData = filtrosResponse.data.filtros;
+          setAtributos(atributosData);
+          
+          const initialFilters: FilterState = {};
+          atributosData.forEach(atributo => {
+            initialFilters[atributo.id.toString()] = {};
+            atributo.valores.forEach(valor => {
+              initialFilters[atributo.id.toString()][valor] = false;
+            });
           });
-        });
-        setFilters(initialFilters);
+          setFilters(initialFilters);
+        }
+
+      } catch (error) {
+        console.error('Error loading data:', error);
+        setError('Error de conexión al cargar el catálogo');
+      } finally {
+        setLoading(false);
       }
+    };
 
-    } catch (error) {
-      console.error('Error loading data:', error);
-      setError('Error de conexión al cargar el catálogo');
-    } finally {
-      setLoading(false);
-    }
-  };
+    loadAllData();
+  }, [categoriaSlug, subcategoriaSlug, searchParams]); // SOLO estas dependencias
 
-  loadAllData();
-}, [categoriaSlug, subcategoriaSlug, searchParams]); // SOLO estas dependencias
-
-const recargarProductosOriginales = useCallback(async () => {
-  let productos: Producto[] = [];
-  const categoriaId = searchParams.get('categoria') || (categoriaActual?.id.toString());
-  
-  if (categoriaId && categoriaActual) {
-    if (!categoriaActual.parent_id) {
-      // Es categoría padre - cargar productos según si tiene subcategorías
-      if (subcategorias.length > 0) {
-        // Cargar productos de todas las subcategorías
-        const productosPromises = subcategorias.map(sub => 
-          apiManager.productos.obtenerPorCategoria(sub.id)
-        );
-        const productosResponses = await Promise.all(productosPromises);
-        
-        for (const prodResponse of productosResponses) {
-          if (prodResponse.success && prodResponse.data) {
-            productos.push(...(prodResponse.data.productos || []));
+  const recargarProductosOriginales = useCallback(async () => {
+    let productos: Producto[] = [];
+    const categoriaId = searchParams.get('categoria') || (categoriaActual?.id.toString());
+    
+    if (categoriaId && categoriaActual) {
+      if (!categoriaActual.parent_id) {
+        // Es categoría padre - cargar productos según si tiene subcategorías
+        if (subcategorias.length > 0) {
+          // Cargar productos de todas las subcategorías
+          const productosPromises = subcategorias.map(sub => 
+            apiManager.productos.obtenerPorCategoria(sub.id)
+          );
+          const productosResponses = await Promise.all(productosPromises);
+          
+          for (const prodResponse of productosResponses) {
+            if (prodResponse.success && prodResponse.data) {
+              productos.push(...(prodResponse.data.productos || []));
+            }
+          }
+        } else {
+          // Sin subcategorías, cargar productos directos
+          const productosResponse = await apiManager.productos.obtenerPorCategoria(parseInt(categoriaId));
+          if (productosResponse.success && productosResponse.data) {
+            productos = productosResponse.data.productos || [];
           }
         }
       } else {
-        // Sin subcategorías, cargar productos directos
+        // Es subcategoría
         const productosResponse = await apiManager.productos.obtenerPorCategoria(parseInt(categoriaId));
         if (productosResponse.success && productosResponse.data) {
           productos = productosResponse.data.productos || [];
         }
       }
-    } else {
-      // Es subcategoría
-      const productosResponse = await apiManager.productos.obtenerPorCategoria(parseInt(categoriaId));
-      if (productosResponse.success && productosResponse.data) {
-        productos = productosResponse.data.productos || [];
-      }
     }
-  }
-  
-  setProductos(productos);
-}, [searchParams, categoriaActual, subcategorias]);
+    
+    setProductos(productos);
+  }, [searchParams, categoriaActual, subcategorias]);
 
-  useEffect(() => {
-    const applyFilters = async () => {
-      setLoadingProductos(true);
-      const filtrosActivos = getFiltrosActivos();
+useEffect(() => {
+  const applyFilters = async () => {
+    console.log('🔧 APLICANDO FILTROS DINÁMICOS');
+    setLoadingProductos(true);
+    const filtrosActivos = getFiltrosActivos();
+    
+    // Determinar qué categoría usar para filtrar
+    let categoriaParaFiltros: number | undefined;
+    
+    if (categoriaActual) {
+      categoriaParaFiltros = categoriaActual.id;
+    }
+    
+    if (Object.keys(filtrosActivos).length > 0) {
+      // 1. Filtrar productos
+      const response = await apiManager.atributos.filtrarProductosSimple(
+        filtrosActivos, 
+        1, 
+        50, 
+        categoriaParaFiltros
+      );
       
-      if (Object.keys(filtrosActivos).length > 0) {
-        // Determinar qué categoría usar para filtrar
-        let categoriaParaFiltros: number | undefined;
+      if (response.success && response.data) {
+        setProductos(response.data.productos);
+      }
+      
+      // 2. Actualizar filtros dinámicos
+      const filtrosDinamicosResponse = await apiManager.atributos.obtenerFiltrosDinamicos(
+        categoriaParaFiltros,
+        filtrosActivos
+      );
+
+            console.log('🔍 Filtros enviados al backend:', filtrosActivos); // ← AGREGAR AQUÍ
+      console.log('🔍 Respuesta filtros dinámicos:', filtrosDinamicosResponse.data); // ← Y AQUÍ
+
+            
+      if (filtrosDinamicosResponse.success && filtrosDinamicosResponse.data) {
+        const atributosActualizados = filtrosDinamicosResponse.data.filtros;
         
-        if (categoriaActual) {
-          if (!categoriaActual.parent_id) {
-            // Es categoría padre - usar su ID
-            categoriaParaFiltros = categoriaActual.id;
-          } else {
-            // Es subcategoría - usar su ID
-            categoriaParaFiltros = categoriaActual.id;
+        // Mantener estructura original pero actualizar valores disponibles
+        setAtributos(prevAtributos => {
+          return prevAtributos.map(atributoOriginal => {
+            const atributoActualizado = atributosActualizados.find(
+              a => a.id === atributoOriginal.id
+            );
+            
+            if (atributoActualizado) {
+              return {
+                ...atributoOriginal,
+                valores: atributoActualizado.valores
+              };
+            }
+            
+            // Si no hay valores dinámicos, mantener valores originales
+            return atributoOriginal;
+          });
+        });
+      }
+          
+      } else {
+        // Sin filtros - recargar productos originales Y filtros completos
+        console.log('🔄 SIN FILTROS - Recargando todo');
+        await recargarProductosOriginales();
+        
+        // Recargar filtros completos (no dinámicos) - SIN TOCAR setFilters
+        if (categoriaParaFiltros) {
+          console.log('🔄 Recargando filtros completos para categoría:', categoriaParaFiltros);
+          const filtrosResponse = await apiManager.atributos.obtenerFiltros(categoriaParaFiltros);
+          if (filtrosResponse.success && filtrosResponse.data) {
+            const atributosData = filtrosResponse.data.filtros;
+            console.log('🔄 Filtros recargados:', atributosData);
+            setAtributos(atributosData);
+            
+            // NO hacer setFilters aquí - eso causa el bucle infinito
           }
         }
-        
-        const response = await apiManager.atributos.filtrarProductosSimple(
-          filtrosActivos, 
-          1, 
-          50, 
-          categoriaParaFiltros // ← PASAR CATEGORÍA
-        );
-        
-        if (response.success && response.data) {
-          setProductos(response.data.productos);
-        }
-      } else {
-        // Sin filtros - recargar productos originales
-        await recargarProductosOriginales();
-      }
-      setLoadingProductos(false);
-    };
-    
-    // Solo ejecutar si hay filtros inicializados
-    if (atributos.length > 0) {
-      applyFilters();
-    }
-  }, [filters, recargarProductosOriginales, atributos.length, categoriaActual]); // ← AGREGAR categoriaActual como dependencia
-
-  // Función para obtener filtros activos
+      }    
+    setLoadingProductos(false);
+  };
+  
+  if (atributos.length > 0) {
+    applyFilters();
+  }
+}, [filters, atributos.length, categoriaActual]); // Solo estas dependencias
+  
+// Función para obtener filtros activos
   const getFiltrosActivos = useCallback((): Record<string, string[]> => {
     const filtrosActivos: Record<string, string[]> = {};
     

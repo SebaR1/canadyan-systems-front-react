@@ -52,6 +52,21 @@ export class AtributosService {
     return this.apiClient.get<{ filtros: AtributoConValores[] }>(url);
   }
 
+  async obtenerFiltrosDinamicos(
+    categoriaId?: number,
+    filtrosAplicados?: Record<string, string[]>
+  ): Promise<ApiResponse<{ filtros: AtributoConValores[] }>> {
+    const body = {
+      categoria_id: categoriaId,
+      filtros_aplicados: filtrosAplicados || {}
+    };
+
+    return this.apiClient.post<{ filtros: AtributoConValores[] }>(
+      '/api/routes/atributos.php?action=dynamic-filters', 
+      body
+    );
+  }
+
   // Asignar atributos a un producto
   async asignarAProducto(
     productoId: number, 
