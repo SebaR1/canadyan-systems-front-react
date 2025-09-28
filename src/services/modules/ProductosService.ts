@@ -16,8 +16,16 @@ export class ProductosService {
   }
 
   // Listar productos
-  async listar(params?: PaginacionParams): Promise<ApiResponse<ListaRespuesta<Producto>>> {
-    return this.apiClient.get<ListaRespuesta<Producto>>('/api/routes/productos.php?action=list', params);
+  async listar(params?: PaginacionParams): Promise<ApiResponse<{ 
+    productos: Producto[];
+    total: number;
+    pagination: any;
+  }>> {
+    return this.apiClient.get<{ 
+      productos: Producto[];
+      total: number;
+      pagination: any;
+    }>('/api/routes/productos.php?action=list', params);
   }
 
   // Obtener producto por ID
@@ -46,12 +54,20 @@ export class ProductosService {
   }
 
   // Obtener productos por categoría
-  async obtenerPorCategoria(categoriaId: number, params?: PaginacionParams): Promise<ApiResponse<ListaRespuesta<Producto>>> {
-    return this.apiClient.get<ListaRespuesta<Producto>>('/api/routes/productos.php?action=by-category', {
-      categoria_id: categoriaId,
-      ...params
-    });
+  async obtenerPorCategoria(categoriaId: number, params?: PaginacionParams): Promise<ApiResponse<{
+    productos: Producto[];
+    categoria: any;
+    total_results: number;
+    pagination: any;
+  }>> {
+    return this.apiClient.get<{
+      productos: Producto[];
+      categoria: any;
+      total_results: number;
+      pagination: any;
+    }>(`/api/routes/productos.php?action=by-category&categoria_id=${categoriaId}`, params);
   }
+
 
   // Obtener productos destacados
   async obtenerDestacados(limit?: number): Promise<ApiResponse<Producto[]>> {

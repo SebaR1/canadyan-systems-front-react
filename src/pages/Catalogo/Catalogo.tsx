@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
@@ -19,20 +19,113 @@ const Catalogo: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadingProductos, setLoadingProductos] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [categoriaActual, setCategoriaActual] = useState<{
+    id: number;
+    nombre: string;
+    parent_id: number | null;
+    padre_nombre?: string;
+  } | null>(null);
 
-  // Cargar filtros y productos al montar el componente
-  useEffect(() => {
-    loadFiltrosYProductos();
-  }, []);
+  const loadProductosIniciales = useCallback(async () => {
+    try {
+      const categoriaId = searchParams.get('categoria');
+      let productos: Producto[] = [];
 
-  // Recargar productos cuando cambien los filtros
-  useEffect(() => {
-    if (atributos.length > 0) {
-      loadProductos();
+      if (categoriaId) {
+        // PRIMERO: Obtener info completa de la categoría para el breadcrumb
+        const categoriaResponse = await apiManager.categorias.obtenerPorId(parseInt(categoriaId));
+        if (categoriaResponse.success && categoriaResponse.data) {
+          const categoria = categoriaResponse.data.categoria;
+          
+          // Si tiene padre, obtener el nombre del padre
+          let padre_nombre = undefined;
+          if (categoria.parent_id) {
+            const padreResponse = await apiManager.categorias.obtenerPorId(categoria.parent_id);
+            if (padreResponse.success && padreResponse.data) {
+            padre_nombre = padreResponse.data.categoria.nombre;            }
+          }
+          
+          setCategoriaActual({
+            id: categoria.id,
+            nombre: categoria.nombre,
+            parent_id: categoria.parent_id,
+            padre_nombre: padre_nombre
+          });
+        }
+        
+        // SEGUNDO: Filtrar productos por categoría
+        const response = await apiManager.productos.obtenerPorCategoria(parseInt(categoriaId));
+        if (response.success && response.data) {
+          productos = response.data.productos || [];
+        }
+      } else {
+        // Si no hay categoría, limpiar categoriaActual
+        setCategoriaActual(null);
+        
+        // Cargar todos los productos
+        const response = await apiManager.productos.listar({ limit: 50 });
+        if (response.success && response.data) {
+          productos = response.data.productos || [];
+        }
+      }
+
+      setProductos(productos);
+    } catch (error) {
+      console.error('Error loading initial products:', error);
     }
+  }, [searchParams]);
+
+  // Función para obtener filtros activos
+  const getFiltrosActivos = useCallback((): Record<string, string[]> => {
+    const filtrosActivos: Record<string, string[]> = {};
+    
+    Object.entries(filters).forEach(([atributoId, valores]) => {
+      const valoresActivos = Object.entries(valores)
+        .filter(([_, activo]) => activo)
+        .map(([valor, _]) => valor);
+      
+      if (valoresActivos.length > 0) {
+        filtrosActivos[atributoId] = valoresActivos;
+      }
+    });
+    
+    return filtrosActivos;
   }, [filters]);
 
-  const loadFiltrosYProductos = async () => {
+  // Función para cargar productos con filtros
+  const loadProductos = useCallback(async () => {
+    try {
+      setLoadingProductos(true);
+      
+      // Obtener filtros activos
+      const filtrosActivos = getFiltrosActivos();
+      
+      let productos: Producto[] = [];
+
+      if (Object.keys(filtrosActivos).length > 0) {
+        // Filtrar por atributos
+        const response = await apiManager.atributos.filtrarProductosSimple(filtrosActivos, 1, 50);
+        
+        if (response.success && response.data) {
+          productos = response.data.productos;
+        }
+      } else {
+        // Cargar productos iniciales sin filtros
+        await loadProductosIniciales();
+        return;
+      }
+
+      setProductos(productos);
+      
+    } catch (error) {
+      console.error('Error filtering products:', error);
+    } finally {
+      setLoadingProductos(false);
+    }
+  }, [getFiltrosActivos, loadProductosIniciales]);
+
+  // Función para cargar filtros y productos iniciales
+  const loadFiltrosYProductos = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -65,79 +158,19 @@ const Catalogo: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadProductosIniciales]);
 
-  const loadProductosIniciales = async () => {
-    try {
-      const categoriaId = searchParams.get('categoria');
-      let productos: Producto[] = [];
+  // Cargar filtros y productos al montar el componente
+  useEffect(() => {
+    loadFiltrosYProductos();
+  }, [loadFiltrosYProductos]);
 
-      if (categoriaId) {
-        // Filtrar por categoría
-        const response = await apiManager.productos.obtenerPorCategoria(parseInt(categoriaId));
-        if (response.success && response.data) {
-          productos = response.data.items || response.data.productos || [];
-        }
-      } else {
-        // Cargar todos los productos
-        const response = await apiManager.productos.listar({ limit: 50 });
-        if (response.success && response.data) {
-          productos = response.data.items || response.data.productos || [];
-        }
-      }
-
-      setProductos(productos);
-    } catch (error) {
-      console.error('Error loading initial products:', error);
+  // Recargar productos cuando cambien los filtros
+  useEffect(() => {
+    if (atributos.length > 0) {
+      loadProductos();
     }
-  };
-
-  const loadProductos = async () => {
-    try {
-      setLoadingProductos(true);
-      
-      // Obtener filtros activos
-      const filtrosActivos = getFiltrosActivos();
-      
-      let productos: Producto[] = [];
-
-      if (Object.keys(filtrosActivos).length > 0) {
-        // Filtrar por atributos
-        const response = await apiManager.atributos.filtrarProductosSimple(filtrosActivos, 1, 50);
-        
-        if (response.success && response.data) {
-          productos = response.data.productos;
-        }
-      } else {
-        // Cargar productos iniciales sin filtros
-        await loadProductosIniciales();
-        return;
-      }
-
-      setProductos(productos);
-      
-    } catch (error) {
-      console.error('Error filtering products:', error);
-    } finally {
-      setLoadingProductos(false);
-    }
-  };
-
-  const getFiltrosActivos = (): Record<string, string[]> => {
-    const filtrosActivos: Record<string, string[]> = {};
-    
-    Object.entries(filters).forEach(([atributoId, valores]) => {
-      const valoresActivos = Object.entries(valores)
-        .filter(([_, activo]) => activo)
-        .map(([valor, _]) => valor);
-      
-      if (valoresActivos.length > 0) {
-        filtrosActivos[atributoId] = valoresActivos;
-      }
-    });
-    
-    return filtrosActivos;
-  };
+  }, [loadProductos, atributos.length]);
 
   const handleFilterChange = (atributoId: string, valor: string) => {
     setFilters(prev => ({
@@ -220,13 +253,31 @@ const Catalogo: React.FC = () => {
                 Inicio
               </Link>
               <span>&gt;</span>
-              <Link to="/catalogo" className="hover:text-orange-500 transition-colors">
+              <span className="text-gray-700">
                 Catálogo
-              </Link>
-              {searchParams.get('nombre') && (
+              </span>
+              
+              {/* Mostrar jerarquía de categorías */}
+              {categoriaActual && (
                 <>
+                  {/* Si tiene padre, mostrarlo como LINK navegable */}
+                  {categoriaActual.parent_id && categoriaActual.padre_nombre && (
+                    <>
+                      <span>&gt;</span>
+                      <Link 
+                        to={`/catalogo?categoria=${categoriaActual.parent_id}&nombre=${encodeURIComponent(categoriaActual.padre_nombre)}`}
+                        className="hover:text-orange-500 transition-colors"
+                      >
+                        {categoriaActual.padre_nombre}
+                      </Link>
+                    </>
+                  )}
+                  
+                  {/* Mostrar la categoría actual como TEXTO (no navegable porque ya estás ahí) */}
                   <span>&gt;</span>
-                  <span className="text-gray-900 font-medium">{searchParams.get('nombre')}</span>
+                  <span className="text-gray-900 font-medium">
+                    {categoriaActual.nombre}
+                  </span>
                 </>
               )}
             </div>
