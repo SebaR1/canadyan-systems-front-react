@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import apiManager from '../../services/ApiIndex';
 import { AtributoConValores, Producto, Categoria } from '../../services/types';
+
 
 interface FilterState {
   [atributoId: string]: { [valor: string]: boolean };
@@ -11,6 +12,8 @@ interface FilterState {
 
 const Catalogo: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const { categoriaSlug, subcategoriaSlug } = useParams();
+  const navigate = useNavigate();
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [sortBy, setSortBy] = useState('precio');
   const [filters, setFilters] = useState<FilterState>({});
@@ -45,26 +48,42 @@ const Catalogo: React.FC = () => {
     return `$${precioNumerico.toFixed(2)}`;
   };
 
+  // REEMPLAZA SOLO tu función loadSubcategorias con esta:
   const loadSubcategorias = useCallback(async (categoriaId: number) => {
     try {
-      console.log('=== INICIANDO loadSubcategorias con ID:', categoriaId);
+      console.log(`=== INICIANDO loadSubcategorias para categoría ${categoriaId} ===`);
+      
       const response = await apiManager.categorias.listar();
+      
       if (response.success && response.data) {
-        const todasCategorias = response.data.categorias;
-        console.log('Total categorías disponibles:', todasCategorias.length);
+        const todasLasCategorias = response.data.categorias;
+        console.log(`Total categorías disponibles: ${todasLasCategorias.length}`);
         
+        // DEBUG: Mostrar TODAS las categorías para ver sus parent_id
+        console.log('=== TODAS LAS CATEGORÍAS ===');
+        todasLasCategorias.forEach((cat, index) => {
+          console.log(`${index + 1}. ID: ${cat.id}, Nombre: "${cat.nombre}", Parent_ID: ${cat.parent_id} (tipo: ${typeof cat.parent_id})`);
+        });
+        
+        console.log(`\n=== BUSCANDO HIJAS DE CATEGORÍA ${categoriaId} ===`);
         const subcategorias = [];
         
-        for (const cat of todasCategorias) {
-          console.log(`Revisando: ${cat.nombre} (ID: ${cat.id}, parent_id: ${cat.parent_id})`);
-          // ARREGLO: Usar Number() para asegurar que ambos sean del mismo tipo
+        for (const cat of todasLasCategorias) {
+          // Solo las comparaciones que funcionan sin errores TypeScript
+          const comparison1 = cat.parent_id === categoriaId;
+          const comparison2 = Number(cat.parent_id) === Number(categoriaId);
+          const comparison3 = String(cat.parent_id) === String(categoriaId);
+          
+          console.log(`Revisando "${cat.nombre}": parent_id=${cat.parent_id}, buscando=${categoriaId}`);
+          console.log(`  === ${comparison1} | Number() ${comparison2} | String() ${comparison3}`);
+          
           if (Number(cat.parent_id) === Number(categoriaId)) {
-            console.log(`  --> MATCH! Agregando: ${cat.nombre}`);
+            console.log(`✅ MATCH! Agregando: ${cat.nombre}`);
             subcategorias.push(cat);
           }
         }
         
-        console.log(`=== RESULTADO FINAL: ${subcategorias.length} subcategorías para categoría ${categoriaId}`);
+        console.log(`=== RESULTADO FINAL: ${subcategorias.length} subcategorías para categoría ${categoriaId} ===`);
         setSubcategorias(subcategorias);
       }
     } catch (error) {
@@ -73,11 +92,256 @@ const Catalogo: React.FC = () => {
     }
   }, []);
 
-  // FUNCIÓN MODIFICADA: loadProductosIniciales
+  // NUEVA FUNCIÓN: Agregar en Catalogo.tsx antes de los useEffect
+  const obtenerCategoriaPorSlug = useCallback(async (slug: string): Promise<Categoria | null> => {
+    try {
+      const response = await apiManager.categorias.listar();
+      if (response.success && response.data) {
+        const categoria = response.data.categorias.find((cat: Categoria) => cat.slug === slug);
+        return categoria || null;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error obteniendo categoría por slug:', error);
+      return null;
+    }
+  }, []);
+
+  // NUEVA FUNCIÓN: Manejar cambio de subcategoría (agregar después de obtenerCategoriaPorSlug)
+  const handleSubcategoriaChange = async (subcategoriaId: string) => {
+    if (subcategoriaId === '') {
+      // "Todas las subcategorías" - ir a categoría padre usando slug
+      if (categoriaActual) {
+        // Si estoy en subcategoría, obtener el slug del padre
+        if (categoriaActual.parent_id) {
+          const padreResponse = await apiManager.categorias.obtenerPorId(categoriaActual.parent_id);
+          if (padreResponse.success && padreResponse.data) {
+            const padreSlug = padreResponse.data.categoria.slug;
+            navigate(`/catalogo/${padreSlug}`);
+          }
+        } else {
+          // Si ya estoy en categoría padre, usar su propio slug
+          const categoria = await obtenerCategoriaPorSlug(categoriaSlug || '');
+          if (categoria) {
+            navigate(`/catalogo/${categoria.slug}`);
+          }
+        }
+      }
+    } else {
+      // Subcategoría específica - buscar su slug y navegar
+      const subcategoria = subcategorias.find(s => s.id === parseInt(subcategoriaId));
+      if (subcategoria && categoriaActual) {
+        // Obtener slug de la categoría padre
+        let padreSlug = '';
+        if (categoriaActual.parent_id) {
+          const padreResponse = await apiManager.categorias.obtenerPorId(categoriaActual.parent_id);
+          if (padreResponse.success && padreResponse.data) {
+            padreSlug = padreResponse.data.categoria.slug;
+          }
+        } else {
+          // categoriaActual es el padre
+          const categoria = await obtenerCategoriaPorSlug(categoriaSlug || '');
+          padreSlug = categoria?.slug || '';
+        }
+        
+        navigate(`/catalogo/${padreSlug}/${subcategoria.slug}`);
+      }
+    }
+    
+    // Limpiar filtros actuales
+    clearFilters();
+  };
+
+  ///////////////////////////////////////////////////////////////////////////////////////////////
+
+// REEMPLAZAR el useEffect con esta versión corregida:
+
+useEffect(() => {
+  const loadAllData = async () => {
+    console.log('🔵 CARGA ÚNICA - useEffect principal');
+    setLoading(true);
+    setError(null);
+
+    try {
+      // 1. Determinar categoría de la URL
+      let categoriaId: string | null = null;
+      
+      if (categoriaSlug) {
+        const categoria = subcategoriaSlug 
+          ? await obtenerCategoriaPorSlug(subcategoriaSlug)
+          : await obtenerCategoriaPorSlug(categoriaSlug);
+        
+        if (categoria) categoriaId = categoria.id.toString();
+      }
+      
+      if (!categoriaId) {
+        categoriaId = searchParams.get('categoria');
+      }
+
+      let productos: Producto[] = [];
+
+      // 2. Cargar datos de categoría y productos
+      if (categoriaId) {
+        const categoriaResponse = await apiManager.categorias.obtenerPorId(parseInt(categoriaId));
+        
+        if (categoriaResponse.success && categoriaResponse.data) {
+          const categoria = categoriaResponse.data.categoria;
+          
+          // Obtener nombre del padre si existe
+          let padre_nombre = undefined;
+          if (categoria.parent_id) {
+            const padreResponse = await apiManager.categorias.obtenerPorId(categoria.parent_id);
+            if (padreResponse.success && padreResponse.data) {
+              padre_nombre = padreResponse.data.categoria.nombre;            
+            }
+          }
+          
+          setCategoriaActual({
+            id: categoria.id,
+            nombre: categoria.nombre,
+            parent_id: categoria.parent_id,
+            padre_nombre: padre_nombre
+          });
+
+          // Cargar subcategorías si es necesario
+          if (!categoria.parent_id) {
+            // Es categoría padre - cargar subcategorías
+            const categoriasResponse = await apiManager.categorias.listar();
+            if (categoriasResponse.success && categoriasResponse.data) {
+              const subs = categoriasResponse.data.categorias.filter(
+                (cat: Categoria) => Number(cat.parent_id) === Number(categoria.id)
+              );
+              setSubcategorias(subs);
+              
+              // Cargar productos de todas las subcategorías
+              if (subs.length > 0) {
+                const productosPromises = subs.map(sub => 
+                  apiManager.productos.obtenerPorCategoria(sub.id)
+                );
+                const productosResponses = await Promise.all(productosPromises);
+                
+                for (const prodResponse of productosResponses) {
+                  if (prodResponse.success && prodResponse.data) {
+                    productos.push(...(prodResponse.data.productos || []));
+                  }
+                }
+              }
+            }
+            setSubcategoriaSeleccionada(null);
+            
+          } else {
+            // Es subcategoría - cargar subcategorías del padre
+            const subcategoriasResponse = await apiManager.categorias.listar();
+            if (subcategoriasResponse.success && subcategoriasResponse.data) {
+              const subs = subcategoriasResponse.data.categorias.filter(
+                (cat: Categoria) => Number(cat.parent_id) === Number(categoria.parent_id)
+              );
+              setSubcategorias(subs);
+            }
+            setSubcategoriaSeleccionada(categoria.id);
+            
+            // Cargar productos de esta subcategoría específica
+            const productosResponse = await apiManager.productos.obtenerPorCategoria(categoria.id);
+            if (productosResponse.success && productosResponse.data) {
+              productos = productosResponse.data.productos || [];
+            }
+          }
+        }
+        
+      } else {
+        // Sin categoría - limpiar y cargar todo
+        setCategoriaActual(null);
+        setSubcategorias([]);
+        setSubcategoriaSeleccionada(null);
+        
+        const todosProductosResponse = await apiManager.productos.listar({ limit: 50 });
+        if (todosProductosResponse.success && todosProductosResponse.data) {
+          productos = todosProductosResponse.data.productos || [];
+        }
+      }
+
+      setProductos(productos);
+      console.log('🔍 Productos encontrados para categoría padre:', productos.length);
+
+      
+      // 3. Cargar filtros
+      const categoriaParaFiltros = categoriaId ? parseInt(categoriaId) : null;
+      const filtrosResponse = await apiManager.atributos.obtenerFiltros(categoriaParaFiltros || undefined);
+      
+      if (filtrosResponse.success && filtrosResponse.data) {
+        const atributosData = filtrosResponse.data.filtros;
+        setAtributos(atributosData);
+        
+        const initialFilters: FilterState = {};
+        atributosData.forEach(atributo => {
+          initialFilters[atributo.id.toString()] = {};
+          atributo.valores.forEach(valor => {
+            initialFilters[atributo.id.toString()][valor] = false;
+          });
+        });
+        setFilters(initialFilters);
+      }
+
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setError('Error de conexión al cargar el catálogo');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  loadAllData();
+}, [categoriaSlug, subcategoriaSlug, searchParams]); // SOLO estas dependencias
+
+useEffect(() => {
+  if (Object.keys(filters).length > 0) {
+    const applyFilters = async () => {
+      setLoadingProductos(true);
+      const filtrosActivos = getFiltrosActivos();
+      
+      if (Object.keys(filtrosActivos).length > 0) {
+        const response = await apiManager.atributos.filtrarProductosSimple(filtrosActivos, 1, 50);
+        if (response.success && response.data) {
+          setProductos(response.data.productos);
+          console.log('🔍 Productos encontrados para categoría padre:', productos.length);
+
+        }
+      }
+      setLoadingProductos(false);
+    };
+    
+    applyFilters();
+  }
+}, [filters]); // Solo cuando cambien los filtros
+
+
+  
   const loadProductosIniciales = useCallback(async () => {
     try {
-      const categoriaId = searchParams.get('categoria');
+      let categoriaId: string | null = null;
       let productos: Producto[] = [];
+
+      // PRIORIDAD 1: Usar slugs de la URL
+      if (categoriaSlug) {
+        let categoria: Categoria | null = null;
+        
+        if (subcategoriaSlug) {
+          // Buscar subcategoría por slug
+          categoria = await obtenerCategoriaPorSlug(subcategoriaSlug);
+        } else {
+          // Buscar categoría padre por slug  
+          categoria = await obtenerCategoriaPorSlug(categoriaSlug);
+        }
+        
+        if (categoria) {
+          categoriaId = categoria.id.toString();
+        }
+      }
+      
+      // PRIORIDAD 2: Fallback a query params (para compatibilidad)
+      if (!categoriaId) {
+        categoriaId = searchParams.get('categoria');
+      }
 
       if (categoriaId) {
         // PRIMERO: Obtener info completa de la categoría para el breadcrumb
@@ -105,10 +369,16 @@ const Catalogo: React.FC = () => {
             // Si es categoría padre, cargar sus subcategorías
             console.log('Categoría padre encontrada:', categoria.id, categoria.nombre);
             await loadSubcategorias(categoria.id);
+            
+            // Limpiar selección de subcategoría cuando es categoría padre
+            setSubcategoriaSeleccionada(null);
           } else {
             // Si es subcategoría, cargar las subcategorías del padre
             console.log('Subcategoría encontrada:', categoria.nombre, 'del padre:', categoria.parent_id);
             await loadSubcategorias(categoria.parent_id);
+            
+            // Establecer la subcategoría actual como seleccionada
+            setSubcategoriaSeleccionada(categoria.id);
           }
         }
         
@@ -161,11 +431,12 @@ const Catalogo: React.FC = () => {
       }
 
       setProductos(productos);
+      console.log('🔍 Productos encontrados para categoría padre:', productos.length);
+
     } catch (error) {
       console.error('Error loading initial products:', error);
     }
-  }, [searchParams, subcategoriaSeleccionada, loadSubcategorias]);
-
+  }, [categoriaSlug, subcategoriaSlug, searchParams, obtenerCategoriaPorSlug]);
 
   // Función para obtener filtros activos
   const getFiltrosActivos = useCallback((): Record<string, string[]> => {
@@ -208,6 +479,8 @@ const Catalogo: React.FC = () => {
       }
 
       setProductos(productos);
+      console.log('🔍 Productos encontrados para categoría padre:', productos.length);
+
       
     } catch (error) {
       console.error('Error filtering products:', error);
@@ -218,21 +491,13 @@ const Catalogo: React.FC = () => {
 
   // FUNCIÓN MODIFICADA: loadFiltrosYProductos
   const loadFiltrosYProductos = useCallback(async () => {
-      console.log('🔵 INICIO loadFiltrosYProductos');
-  console.log('🔵 subcategorias.length:', subcategorias.length);
 
     try {
       setLoading(true);
       setError(null);
-      
-      // PRIMERO: Cargar productos iniciales (esto ya carga las subcategorías)
-          console.log('🔵 Llamando loadProductosIniciales...');
-
 
       await loadProductosIniciales();
       
-          console.log('🔵 Después de loadProductosIniciales, subcategorias.length:', subcategorias.length);
-
       // SEGUNDO: Determinar qué categoría usar para los filtros (después de cargar subcategorías)
       const categoriaId = searchParams.get('categoria');
       const categoriaParaFiltros = subcategoriaSeleccionada || (categoriaId ? parseInt(categoriaId) : null);
@@ -262,28 +527,25 @@ const Catalogo: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [loadProductosIniciales, searchParams, subcategoriaSeleccionada]);
-
-  // NUEVA FUNCIÓN: Manejar cambio de subcategoría
-  const handleSubcategoriaChange = (subcategoriaId: string) => {
-    const newSubcategoriaId = subcategoriaId === '' ? null : parseInt(subcategoriaId);
-    setSubcategoriaSeleccionada(newSubcategoriaId);
-    
-    // Limpiar filtros actuales
-    clearFilters();
-  };
+  }, [categoriaSlug, subcategoriaSlug, searchParams, loadProductosIniciales]);
 
   // Cargar filtros y productos al montar el componente
   useEffect(() => {
     loadFiltrosYProductos();
-  }, [loadFiltrosYProductos]);
+  }, [categoriaSlug, subcategoriaSlug, searchParams]);
 
   // Recargar productos cuando cambien los filtros
-  useEffect(() => {
+/*   useEffect(() => {
     if (atributos.length > 0) {
       loadProductos();
     }
-  }, [loadProductos, atributos.length]);
+  }, [loadProductos, atributos.length]); */
+
+  useEffect(() => {
+  if (Object.keys(filters).length > 0) {
+    loadProductos();
+  }
+  }, [filters]);
 
   const handleFilterChange = (atributoId: string, valor: string) => {
     setFilters(prev => ({

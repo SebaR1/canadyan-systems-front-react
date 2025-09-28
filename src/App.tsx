@@ -13,7 +13,14 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Home />} />
+        
+        {/* Ruta original (mantener para compatibilidad) */}
         <Route path="/catalogo" element={<Catalogo />} />
+        
+        {/* NUEVAS RUTAS con slugs */}
+        <Route path="/catalogo/:categoriaSlug" element={<Catalogo />} />
+        <Route path="/catalogo/:categoriaSlug/:subcategoriaSlug" element={<Catalogo />} />
+        
         <Route path="/contacto" element={<Contacto />} />
         <Route path="/perfil" element={<Perfil />} />
       </Routes>

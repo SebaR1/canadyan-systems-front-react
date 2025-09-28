@@ -109,9 +109,16 @@ const Header: React.FC = () => {
     navigate(path);
   };
 
-  const handleCategoryNavigation = (categoriaId: number, categoriaNombre: string) => {
+  const handleCategoryNavigation = (categoriaId: number, categoriaNombre: string, categoriaSlug?: string) => {
     closeMenu();
-    navigate(`/catalogo?categoria=${categoriaId}&nombre=${encodeURIComponent(categoriaNombre)}`);
+    
+    // Si tenemos el slug, usar URLs amigables
+    if (categoriaSlug) {
+      navigate(`/catalogo/${categoriaSlug}`);
+    } else {
+      // Fallback al formato antiguo (para compatibilidad)
+      navigate(`/catalogo?categoria=${categoriaId}&nombre=${encodeURIComponent(categoriaNombre)}`);
+    }
   };
 
   const handleLogout = () => {
@@ -294,7 +301,7 @@ const Header: React.FC = () => {
                             <button 
                               className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors uppercase font-semibold"
                               onClick={() => {
-                                handleCategoryNavigation(categoria.id, categoria.nombre);
+                                handleCategoryNavigation(categoria.id, categoria.nombre, categoria.slug);
                                 setDesktopDropdown(null);
                               }}
                             >
@@ -309,7 +316,8 @@ const Header: React.FC = () => {
                                     key={subcategoria.id}
                                     className="block w-full text-left px-4 py-1 hover:bg-gray-700 transition-colors text-sm text-gray-300"
                                     onClick={() => {
-                                      handleCategoryNavigation(subcategoria.id, subcategoria.nombre);
+                                      // Para subcategorías necesitamos tanto el padre como la subcategoría
+                                      handleCategoryNavigation(subcategoria.id, subcategoria.nombre, `${categoria.slug}/${subcategoria.slug}`);
                                       setDesktopDropdown(null);
                                     }}
                                   >
@@ -483,7 +491,7 @@ const Header: React.FC = () => {
                             if (categoria.children && categoria.children.length > 0) {
                               toggleSubCategory(`categoria-${categoria.id}`);
                             } else {
-                              handleCategoryNavigation(categoria.id, categoria.nombre);
+                              handleCategoryNavigation(categoria.id, categoria.nombre, categoria.slug);
                             }
                           }}
                         >
@@ -509,7 +517,7 @@ const Header: React.FC = () => {
                               <button 
                                 key={subcategoria.id}
                                 className="w-full text-left py-1.5 px-2 text-xs text-gray-300 hover:bg-gray-400 rounded transition-colors"
-                                onClick={() => handleCategoryNavigation(subcategoria.id, subcategoria.nombre)}
+                                onClick={() => handleCategoryNavigation(subcategoria.id, subcategoria.nombre, `${categoria.slug}/${subcategoria.slug}`)}
                               >
                                 {subcategoria.nombre}
                               </button>
