@@ -108,10 +108,6 @@ const Catalogo: React.FC = () => {
     clearFilters();
   };
 
-  ///////////////////////////////////////////////////////////////////////////////////////////////
-
-// REEMPLAZAR el useEffect con esta versión corregida:
-
 useEffect(() => {
   const loadAllData = async () => {
     console.log('🔵 CARGA ÚNICA - useEffect principal');
@@ -293,28 +289,47 @@ const recargarProductosOriginales = useCallback(async () => {
   setProductos(productos);
 }, [searchParams, categoriaActual, subcategorias]);
 
-useEffect(() => {
-  const applyFilters = async () => {
-    setLoadingProductos(true);
-    const filtrosActivos = getFiltrosActivos();
-    
-    if (Object.keys(filtrosActivos).length > 0) {
-      const response = await apiManager.atributos.filtrarProductosSimple(filtrosActivos, 1, 50);
-      if (response.success && response.data) {
-        setProductos(response.data.productos);
+  useEffect(() => {
+    const applyFilters = async () => {
+      setLoadingProductos(true);
+      const filtrosActivos = getFiltrosActivos();
+      
+      if (Object.keys(filtrosActivos).length > 0) {
+        // Determinar qué categoría usar para filtrar
+        let categoriaParaFiltros: number | undefined;
+        
+        if (categoriaActual) {
+          if (!categoriaActual.parent_id) {
+            // Es categoría padre - usar su ID
+            categoriaParaFiltros = categoriaActual.id;
+          } else {
+            // Es subcategoría - usar su ID
+            categoriaParaFiltros = categoriaActual.id;
+          }
+        }
+        
+        const response = await apiManager.atributos.filtrarProductosSimple(
+          filtrosActivos, 
+          1, 
+          50, 
+          categoriaParaFiltros // ← PASAR CATEGORÍA
+        );
+        
+        if (response.success && response.data) {
+          setProductos(response.data.productos);
+        }
+      } else {
+        // Sin filtros - recargar productos originales
+        await recargarProductosOriginales();
       }
-    } else {
-      // Sin filtros - recargar productos originales
-      await recargarProductosOriginales();
+      setLoadingProductos(false);
+    };
+    
+    // Solo ejecutar si hay filtros inicializados
+    if (atributos.length > 0) {
+      applyFilters();
     }
-    setLoadingProductos(false);
-  };
-  
-  // Solo ejecutar si hay filtros inicializados
-  if (atributos.length > 0) {
-    applyFilters();
-  }
-}, [filters, recargarProductosOriginales, atributos.length]);
+  }, [filters, recargarProductosOriginales, atributos.length, categoriaActual]); // ← AGREGAR categoriaActual como dependencia
 
   // Función para obtener filtros activos
   const getFiltrosActivos = useCallback((): Record<string, string[]> => {

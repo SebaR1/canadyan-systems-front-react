@@ -76,23 +76,9 @@ export class AtributosService {
   // Filtrar productos por atributos
   async filtrarProductos(
     filtros: FiltrosAtributos,
-    params?: PaginacionParams
-  ): Promise<ApiResponse<{
-    productos: Producto[];
-    filtros_aplicados: FiltrosAtributos;
-    pagination: {
-      current_page: number;
-      per_page: number;
-      total_results: number;
-    }
-  }>> {
-    const body = {
-      filtros: filtros,
-      page: params?.offset ? Math.floor(params.offset / (params.limit || 10)) + 1 : 1,
-      limit: params?.limit || 10
-    };
-
-    return this.apiClient.post<{
+    params?: PaginacionParams,
+    categoriaId?: number // ← NUEVO PARÁMETRO
+    ): Promise<ApiResponse<{
       productos: Producto[];
       filtros_aplicados: FiltrosAtributos;
       pagination: {
@@ -100,36 +86,53 @@ export class AtributosService {
         per_page: number;
         total_results: number;
       }
-    }>('/api/routes/atributos.php?action=filter-products', body);
+    }>> {
+      const body = {
+        filtros: filtros,
+        page: params?.offset ? Math.floor(params.offset / (params.limit || 10)) + 1 : 1,
+        limit: params?.limit || 10,
+        categoria_id: categoriaId // ← AGREGAR CATEGORÍA AL BODY
+      };
+
+      return this.apiClient.post<{
+        productos: Producto[];
+        filtros_aplicados: FiltrosAtributos;
+        pagination: {
+          current_page: number;
+          per_page: number;
+          total_results: number;
+        }
+      }>('/api/routes/atributos.php?action=filter-products', body);
   }
 
   // Método de conveniencia para filtrar productos con parámetros simples
   async filtrarProductosSimple(
     filtros: Record<string, string[]>,
     page: number = 1,
-    limit: number = 10
-  ): Promise<ApiResponse<{
-    productos: Producto[];
-    filtros_aplicados: FiltrosAtributos;
-    pagination: {
-      current_page: number;
-      per_page: number;
-      total_results: number;
-    }
-  }>> {
-    // Convertir filtros a formato esperado por la API
-    const filtrosFormateados: FiltrosAtributos = {};
-    
-    Object.entries(filtros).forEach(([key, valores]) => {
-      if (valores && valores.length > 0) {
-        filtrosFormateados[key] = valores;
+    limit: number = 10,
+    categoriaId?: number // ← NUEVO PARÁMETRO
+    ): Promise<ApiResponse<{
+      productos: Producto[];
+      filtros_aplicados: FiltrosAtributos;
+      pagination: {
+        current_page: number;
+        per_page: number;
+        total_results: number;
       }
-    });
+    }>> {
+      // Convertir filtros a formato esperado por la API
+      const filtrosFormateados: FiltrosAtributos = {};
+      
+      Object.entries(filtros).forEach(([key, valores]) => {
+        if (valores && valores.length > 0) {
+          filtrosFormateados[key] = valores;
+        }
+      });
 
-    return this.filtrarProductos(filtrosFormateados, {
-      offset: (page - 1) * limit,
-      limit: limit
-    });
+      return this.filtrarProductos(filtrosFormateados, {
+        offset: (page - 1) * limit,
+        limit: limit
+      }, categoriaId); // ← PASAR CATEGORÍA
   }
 
   // Obtener valores únicos de un atributo específico
