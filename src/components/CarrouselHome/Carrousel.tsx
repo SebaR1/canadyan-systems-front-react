@@ -9,11 +9,9 @@ const Carousel: React.FC = () => {
 
   // Imágenes placeholder - puedes reemplazar con tus imágenes reales
   const images = [
-    'https://picsum.photos/800/400?random=8',
-    'https://picsum.photos/800/400?random=4',
-    'https://picsum.photos/800/400?random=1',
-    'https://picsum.photos/800/400?random=4',
-    'https://picsum.photos/800/400?random=5'
+    '/images/banner1.png',
+    '/images/banner2.png',
+    '/images/banner3.jpg'
   ];
 
   // Auto-play funcionalidad
@@ -80,7 +78,9 @@ const Carousel: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-40 md:h-64 lg:h-96 bg-gray-900 overflow-hidden group">
+
+    
+    <div className="relative w-full h-40 md:h-64 lg:h-[650px] bg-gray-900 overflow-hidden group">
       {/* Contenedor de imágenes */}
       <div 
         className="relative w-full h-full touch-pan-y"
@@ -98,7 +98,7 @@ const Carousel: React.FC = () => {
             <img
               src={image}
               alt={`Slide ${index + 1}`}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-contain"
               draggable={false}
             />
           </div>
