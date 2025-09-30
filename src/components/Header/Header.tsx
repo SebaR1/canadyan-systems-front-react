@@ -264,7 +264,7 @@ const Header: React.FC = () => {
             <div className="flex-1 flex justify-start px-4 md:flex-initial">
               <Link to="/">
                 <img 
-                  src="images/logo.png" 
+                  src="/images/logo.png" 
                   alt="Logo" 
                   className="h-9 max-w-20"
                 />
