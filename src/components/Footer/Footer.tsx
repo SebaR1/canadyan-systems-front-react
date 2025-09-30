@@ -26,9 +26,11 @@ const Footer: React.FC = () => {
             <div className="flex-1 lg:max-w-xs">
               {/* Logo y texto de la empresa */}
               <div className="flex items-center flex-col space-x-3">
-                <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center">
-                  <div className="text-white font-bold text-lg">C</div>
-                </div>
+                <img 
+                  src="images/logo.png" 
+                  alt="Logo" 
+                  className="h-16 max-w-32 mb-4"
+                />                
                 <div className='flex flex-col justify-start items-start space-y-1'>
                   <div className="text-sm font-medium text-white">CANADIAN SISTEMAS</div>
                   <div className="text-xs text-gray-300">SEGURIDAD Y CONTROL</div>

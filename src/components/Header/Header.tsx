@@ -264,12 +264,10 @@ const Header: React.FC = () => {
             <div className="flex-1 flex justify-start px-4 md:flex-initial">
               <Link to="/">
                 <img 
-                  src="/logo.png" 
+                  src="images/logo.png" 
                   alt="Logo" 
-                  className="h-6 max-w-24"
+                  className="h-9 max-w-20"
                 />
-                {/* Si no tienes logo aún, puedes usar esto temporalmente: */}
-                {/* <div className="text-lg font-bold text-orange-500">LOGO</div> */}
               </Link>
             </div>
 
