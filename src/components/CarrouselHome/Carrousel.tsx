@@ -80,7 +80,7 @@ const Carousel: React.FC = () => {
   return (
 
     
-    <div className="relative w-full h-40 md:h-64 lg:h-[650px] bg-gray-900 overflow-hidden group">
+    <div className="relative w-full h-[32rem] md:h-[34rem] lg:h-[650px] bg-gray-900 overflow-hidden group">
       {/* Contenedor de imágenes */}
       <div 
         className="relative w-full h-full touch-pan-y"

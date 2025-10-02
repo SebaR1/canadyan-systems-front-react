@@ -482,17 +482,6 @@ const Header: React.FC = () => {
                   </button>
                 )}
               </div>
-
-              {/* Botón de carrito */}
-              <button className="p-2 active:bg-gray-600 rounded transition-colors relative touch-manipulation">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m1.6 8L5 3H3m4 10v6a1 1 0 001 1h10a1 1 0 001-1v-6m-2 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                {/* Badge del carrito (opcional) */}
-                <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
-                  0
-                </span>
-              </button>
             </div>
           </div>
         </div>
