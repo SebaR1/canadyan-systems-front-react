@@ -3,6 +3,7 @@ import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom'
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import apiManager from '../../services/ApiIndex';
+import ProductCard from '../../components/Cards/ProductCard/ProductCard';
 import { AtributoConValores, Producto, Categoria } from '../../services/types';
 
 
@@ -718,49 +719,19 @@ const Catalogo: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-6">
-                  {productos.map((producto) => (
-                    <div key={producto.id} className="bg-white rounded-2xl border-2 border-gray-300 p-4 shadow-sm">
-                      
-                      {/* Imagen */}
-                      <div className="flex justify-center mb-4">
-                        <img
-                          src={producto.imagen_url || `https://picsum.photos/300/200?random=${producto.id}`}
-                          alt={producto.nombre}
-                          className="w-full h-32 object-contain"
+                    <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-6">
+                      {productos.map((producto) => (
+                        <ProductCard
+                          key={producto.id}
+                          id={producto.id}
+                          image={producto.imagen_url || `https://picsum.photos/300/200?random=${producto.id}`}
+                          title={producto.nombre}
+                          description={producto.descripcion || ''}
+                          price={formatearPrecio(producto.precio)}
+                          stock={producto.stock}
                         />
-                      </div>
-
-                      {/* Título */}
-                      <h3 className="text-gray-800 font-semibold text-sm mb-2 leading-5">
-                        {producto.nombre}
-                      </h3>
-
-                      {/* Descripción */}
-                      <p className="text-gray-600 text-xs mb-4 leading-4">
-                        {producto.descripcion}
-                      </p>
-
-                      {/* Precio */}
-                      <div className="text-gray-800 font-medium text-sm mb-4">
-                        {formatearPrecio(producto.precio)}
-                      </div>
-
-                      {/* Botón */}
-                      <div className="flex justify-center">
-                        {(producto.stock && producto.stock > 0) ? (
-                          <button className="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-semibold py-2 px-6 rounded-full transition-colors duration-200 touch-manipulation text-sm">
-                            VER MÁS
-                          </button>
-                        ) : (
-                          <button className="bg-black text-white font-semibold py-2 px-6 rounded-full text-sm cursor-not-allowed">
-                            SIN STOCK
-                          </button>
-                        )}
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
               )}
             </div>
           </div>

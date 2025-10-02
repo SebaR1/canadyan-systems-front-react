@@ -9,28 +9,26 @@ const FeaturedProducts: React.FC = () => {
       image: 'https://picsum.photos/300/200?random=10',
       title: 'KY-PP-S31L-20D Sfp+ 10g Lr 10km Sm Lc Dúplex',
       description: 'Módulo transceptor de fibra óptica',
-      price: '$..........'
+      price: '$..........',
+      stock: 5
     },
     {
       id: 2,
       image: 'https://picsum.photos/300/200?random=11',
       title: 'Router WiFi 6 AX3000 Dual Band',
       description: 'Router inalámbrico de alta velocidad',
-      price: '$..........'
+      price: '$..........',
+      stock: 3
     },
     {
       id: 3,
       image: 'https://picsum.photos/300/200?random=12',
       title: 'Switch Gigabit 24 Puertos PoE+',
       description: 'Switch administrable con Power over Ethernet',
-      price: '$..........'
+      price: '$..........',
+      stock: 8
     }
   ];
-
-  const handleVerMas = (productId: number) => {
-    console.log(`Ver más del producto ${productId}`);
-    // Aquí puedes agregar la lógica para navegar al detalle del producto
-  };
 
   return (
     <section className="bg-gray-50 py-12 px-4">
@@ -48,11 +46,12 @@ const FeaturedProducts: React.FC = () => {
           {featuredProducts.map((product) => (
             <ProductCard
               key={product.id}
+              id={product.id}
               image={product.image}
               title={product.title}
               description={product.description}
               price={product.price}
-              onVerMas={() => handleVerMas(product.id)}
+              stock={product.stock}
               className="w-full max-w-64 mx-auto"
             />
           ))}
