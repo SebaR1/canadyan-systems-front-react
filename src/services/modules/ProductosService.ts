@@ -49,8 +49,24 @@ export class ProductosService {
   }
 
   // Buscar productos
-  async buscar(filtros: ProductoBusqueda): Promise<ApiResponse<ListaRespuesta<Producto>>> {
-    return this.apiClient.get<ListaRespuesta<Producto>>('/api/routes/productos.php?action=search', filtros);
+  async buscar(filtros: ProductoBusqueda): Promise<ApiResponse<{
+    productos: Producto[];
+    search_term: string;
+    total_results: number;
+    pagination: {
+      current_page: number;
+      per_page: number;
+    }
+  }>> {
+    return this.apiClient.get<{
+      productos: Producto[];
+      search_term: string;
+      total_results: number;
+      pagination: {
+        current_page: number;
+        per_page: number;
+      }
+    }>('/api/routes/productos.php?action=search', filtros);
   }
 
   // Obtener productos por categoría

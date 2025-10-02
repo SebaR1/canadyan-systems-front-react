@@ -70,11 +70,12 @@ export interface ProductoActualizacion {
 }
 
 export interface ProductoBusqueda {
-  query?: string;
+  q?: string;              // ✅ Cambiar 'query' por 'q'
   categoria_id?: number;
   precio_min?: number;
   precio_max?: number;
   activo?: boolean;
+  page?: number;           // ✅ Agregar
   limit?: number;
   offset?: number;
 }

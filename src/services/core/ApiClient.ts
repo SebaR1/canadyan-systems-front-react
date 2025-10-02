@@ -96,7 +96,6 @@ export class ApiClient {
     }
   }
 
-
   async get<T>(endpoint: string, params?: Record<string, any>): Promise<ApiResponse<T>> {
     let url = endpoint;
     
@@ -109,7 +108,9 @@ export class ApiClient {
       });
       
       if (searchParams.toString()) {
-        url += `?${searchParams.toString()}`;
+        // ✅ CORRECCIÓN: Detectar si ya tiene "?" en la URL
+        const separator = url.includes('?') ? '&' : '?';
+        url += `${separator}${searchParams.toString()}`;
       }
     }
 

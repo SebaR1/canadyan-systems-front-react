@@ -17,9 +17,9 @@ export interface Categoria {
   id: number;
   nombre: string;
   descripcion?: string;
-  slug: string;           // ← Agregar
-  parent_id: number | null;  // ← Agregar  
-  children?: Categoria[]; // ← Agregar (opcional)
+  slug: string;
+  parent_id: number | null;
+  children?: Categoria[];
   activo: boolean;
   fecha_creacion: string;
 }
@@ -35,6 +35,12 @@ const Header: React.FC = () => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loadingCategorias, setLoadingCategorias] = useState(false);
+  
+  // ✅ NUEVO: Estados para búsqueda
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTermMobile, setSearchTermMobile] = useState('');
+  const [showSearchDesktop, setShowSearchDesktop] = useState(false);
+  
   const navigate = useNavigate();
 
   // Verificar si hay usuario logueado al cargar el componente
@@ -102,6 +108,8 @@ const Header: React.FC = () => {
     setExpandedCategory(null);
     setExpandedSubCategory(null);
     setDesktopDropdown(null);
+    // ✅ NUEVO: Limpiar búsqueda mobile al cerrar menú
+    setSearchTermMobile('');
   };
 
   const handleNavigation = (path: string) => {
@@ -118,6 +126,40 @@ const Header: React.FC = () => {
     } else {
       // Fallback al formato antiguo (para compatibilidad)
       navigate(`/catalogo?categoria=${categoriaId}&nombre=${encodeURIComponent(categoriaNombre)}`);
+    }
+  };
+
+  // ✅ NUEVO: Función para manejar búsqueda en MOBILE
+  const handleSearchMobile = () => {
+    const term = searchTermMobile.trim();
+    if (term) {
+      closeMenu();
+      navigate(`/catalogo?busqueda=${encodeURIComponent(term)}`);
+      setSearchTermMobile('');
+    }
+  };
+
+  // ✅ NUEVO: Función para manejar búsqueda en DESKTOP
+  const handleSearchDesktop = () => {
+    const term = searchTerm.trim();
+    if (term) {
+      navigate(`/catalogo?busqueda=${encodeURIComponent(term)}`);
+      setSearchTerm('');
+      setShowSearchDesktop(false);
+    }
+  };
+
+  // ✅ NUEVO: Manejar Enter en input mobile
+  const handleKeyDownMobile = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearchMobile();
+    }
+  };
+
+  // ✅ NUEVO: Manejar Enter en input desktop
+  const handleKeyDownDesktop = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearchDesktop();
     }
   };
 
@@ -392,14 +434,54 @@ const Header: React.FC = () => {
               </Link>
             </nav>
 
-            {/* Iconos de búsqueda y carrito */}
+            {/* ✅ MODIFICADO: Iconos de búsqueda y carrito en DESKTOP */}
             <div className="flex items-center gap-1">
-              {/* Botón de búsqueda */}
-              <button className="p-2 active:bg-gray-600 rounded transition-colors touch-manipulation">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </button>
+              {/* Búsqueda Desktop - Ahora es expandible */}
+              <div className="relative">
+                {showSearchDesktop ? (
+                  // Input expandido
+                  <div className="flex items-center bg-white rounded-full px-3 py-1">
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      onKeyDown={handleKeyDownDesktop}
+                      placeholder="Buscar productos..."
+                      className="w-48 text-sm text-gray-800 placeholder-gray-400 focus:outline-none"
+                      autoFocus
+                    />
+                    <button 
+                      onClick={handleSearchDesktop}
+                      className="ml-2 p-1 hover:bg-gray-100 rounded transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setShowSearchDesktop(false);
+                        setSearchTerm('');
+                      }}
+                      className="ml-1 p-1 hover:bg-gray-100 rounded transition-colors"
+                    >
+                      <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                ) : (
+                  // Botón de lupa
+                  <button 
+                    onClick={() => setShowSearchDesktop(true)}
+                    className="p-2 active:bg-gray-600 rounded transition-colors touch-manipulation"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
 
               {/* Botón de carrito */}
               <button className="p-2 active:bg-gray-600 rounded transition-colors relative touch-manipulation">
@@ -429,15 +511,21 @@ const Header: React.FC = () => {
         isMenuOpen ? 'translate-x-0' : '-translate-x-full'
       }`}>
         
-        {/* Barra de búsqueda */}
+        {/* ✅ MODIFICADO: Barra de búsqueda MOBILE funcional */}
         <div className="p-4 border-b border-gray-400">
           <div className="relative">
             <input
               type="text"
+              value={searchTermMobile}
+              onChange={(e) => setSearchTermMobile(e.target.value)}
+              onKeyDown={handleKeyDownMobile}
               placeholder="Buscar productos..."
               className="w-full bg-gray-400 text-white placeholder-gray-200 border border-gray-300 rounded-full py-2 pl-4 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
             />
-            <button className="absolute right-3 top-1/2 transform -translate-y-1/2">
+            <button 
+              onClick={handleSearchMobile}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2"
+            >
               <svg className="w-4 h-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>

@@ -33,6 +33,9 @@ const Catalogo: React.FC = () => {
   const [subcategorias, setSubcategorias] = useState<Categoria[]>([]);
   const [subcategoriaSeleccionada, setSubcategoriaSeleccionada] = useState<number | null>(null);
 
+  // ✅ NUEVO: Estado para detectar modo búsqueda
+  const terminoBusqueda = searchParams.get('busqueda');
+
   // FUNCIÓN HELPER PARA FORMATEAR PRECIO
   const formatearPrecio = (precio: any): string => {
     if (!precio || precio === '' || precio === null || precio === undefined) {
@@ -108,13 +111,50 @@ const Catalogo: React.FC = () => {
     clearFilters();
   };
 
+  // ✅ MODIFICADO: useEffect principal con detección de búsqueda
   useEffect(() => {
     const loadAllData = async () => {
       console.log('🔵 CARGA ÚNICA - useEffect principal');
+      console.log('🔍 Término de búsqueda:', terminoBusqueda);
       setLoading(true);
       setError(null);
 
       try {
+        // ✅ MODO BÚSQUEDA - Nueva lógica
+        if (terminoBusqueda) {
+          console.log('🔎 MODO BÚSQUEDA ACTIVADO');
+          
+          // Limpiar estados de categoría y filtros
+          setCategoriaActual(null);
+          setSubcategorias([]);
+          setSubcategoriaSeleccionada(null);
+          setAtributos([]);
+          setFilters({});
+          
+          // Llamar a API de búsqueda
+          const busquedaResponse = await apiManager.productos.buscar({ 
+            q: terminoBusqueda,
+            page: 1,
+            limit: 50
+          });
+          
+          if (busquedaResponse.success && busquedaResponse.data) {
+            // El backend devuelve 'productos' directamente
+            const productosEncontrados = (busquedaResponse.data as any).productos || [];
+            setProductos(productosEncontrados);
+            console.log('🔍 Resultados de búsqueda:', productosEncontrados.length);
+          } else {
+            setProductos([]);
+            console.log('🔍 No se encontraron resultados');
+          }
+          
+          setLoading(false);
+          return; // ← IMPORTANTE: Salir aquí para no ejecutar lógica de categorías
+        }
+
+        // ✅ MODO NORMAL - Tu lógica existente
+        console.log('📂 MODO CATEGORÍA NORMAL');
+        
         // 1. Determinar categoría de la URL
         let categoriaId: string | null = null;
         
@@ -219,10 +259,10 @@ const Catalogo: React.FC = () => {
         }
 
         setProductos(productos);
-        console.log('🔍 Productos encontrados para categoría padre:', productos.length);
+        console.log('🔍 Productos encontrados para categoría:', productos.length);
 
         
-        // 3. Cargar filtros
+        // 3. Cargar filtros (solo en modo normal)
         const categoriaParaFiltros = categoriaId ? parseInt(categoriaId) : null;
         const filtrosResponse = await apiManager.atributos.obtenerFiltros(categoriaParaFiltros || undefined);
         
@@ -249,7 +289,7 @@ const Catalogo: React.FC = () => {
     };
 
     loadAllData();
-  }, [categoriaSlug, subcategoriaSlug, searchParams]); // SOLO estas dependencias
+  }, [categoriaSlug, subcategoriaSlug, searchParams, terminoBusqueda]); // ← Agregada dependencia
 
   const recargarProductosOriginales = useCallback(async () => {
     let productos: Producto[] = [];
@@ -289,65 +329,70 @@ const Catalogo: React.FC = () => {
     setProductos(productos);
   }, [searchParams, categoriaActual, subcategorias]);
 
-useEffect(() => {
-  const applyFilters = async () => {
-    console.log('🔧 APLICANDO FILTROS DINÁMICOS');
-    setLoadingProductos(true);
-    const filtrosActivos = getFiltrosActivos();
-    
-    // Determinar qué categoría usar para filtrar
-    let categoriaParaFiltros: number | undefined;
-    
-    if (categoriaActual) {
-      categoriaParaFiltros = categoriaActual.id;
+  // ✅ MODIFICADO: Solo aplicar filtros si NO estamos en modo búsqueda
+  useEffect(() => {
+    // Si estamos en modo búsqueda, no aplicar filtros
+    if (terminoBusqueda) {
+      return;
     }
-    
-    if (Object.keys(filtrosActivos).length > 0) {
-      // 1. Filtrar productos
-      const response = await apiManager.atributos.filtrarProductosSimple(
-        filtrosActivos, 
-        1, 
-        50, 
-        categoriaParaFiltros
-      );
+
+    const applyFilters = async () => {
+      console.log('🔧 APLICANDO FILTROS DINÁMICOS');
+      setLoadingProductos(true);
+      const filtrosActivos = getFiltrosActivos();
       
-      if (response.success && response.data) {
-        setProductos(response.data.productos);
+      // Determinar qué categoría usar para filtrar
+      let categoriaParaFiltros: number | undefined;
+      
+      if (categoriaActual) {
+        categoriaParaFiltros = categoriaActual.id;
       }
       
-      // 2. Actualizar filtros dinámicos
-      const filtrosDinamicosResponse = await apiManager.atributos.obtenerFiltrosDinamicos(
-        categoriaParaFiltros,
-        filtrosActivos
-      );
-
-            console.log('🔍 Filtros enviados al backend:', filtrosActivos); // ← AGREGAR AQUÍ
-      console.log('🔍 Respuesta filtros dinámicos:', filtrosDinamicosResponse.data); // ← Y AQUÍ
-
-            
-      if (filtrosDinamicosResponse.success && filtrosDinamicosResponse.data) {
-        const atributosActualizados = filtrosDinamicosResponse.data.filtros;
+      if (Object.keys(filtrosActivos).length > 0) {
+        // 1. Filtrar productos
+        const response = await apiManager.atributos.filtrarProductosSimple(
+          filtrosActivos, 
+          1, 
+          50, 
+          categoriaParaFiltros
+        );
         
-        // Mantener estructura original pero actualizar valores disponibles
-        setAtributos(prevAtributos => {
-          return prevAtributos.map(atributoOriginal => {
-            const atributoActualizado = atributosActualizados.find(
-              a => a.id === atributoOriginal.id
-            );
-            
-            if (atributoActualizado) {
-              return {
-                ...atributoOriginal,
-                valores: atributoActualizado.valores
-              };
-            }
-            
-            // Si no hay valores dinámicos, mantener valores originales
-            return atributoOriginal;
-          });
-        });
-      }
+        if (response.success && response.data) {
+          setProductos(response.data.productos);
+        }
+        
+        // 2. Actualizar filtros dinámicos
+        const filtrosDinamicosResponse = await apiManager.atributos.obtenerFiltrosDinamicos(
+          categoriaParaFiltros,
+          filtrosActivos
+        );
+
+        console.log('🔍 Filtros enviados al backend:', filtrosActivos);
+        console.log('🔍 Respuesta filtros dinámicos:', filtrosDinamicosResponse.data);
+              
+        if (filtrosDinamicosResponse.success && filtrosDinamicosResponse.data) {
+          const atributosActualizados = filtrosDinamicosResponse.data.filtros;
           
+          // Mantener estructura original pero actualizar valores disponibles
+          setAtributos(prevAtributos => {
+            return prevAtributos.map(atributoOriginal => {
+              const atributoActualizado = atributosActualizados.find(
+                a => a.id === atributoOriginal.id
+              );
+              
+              if (atributoActualizado) {
+                return {
+                  ...atributoOriginal,
+                  valores: atributoActualizado.valores
+                };
+              }
+              
+              // Si no hay valores dinámicos, mantener valores originales
+              return atributoOriginal;
+            });
+          });
+        }
+            
       } else {
         // Sin filtros - recargar productos originales Y filtros completos
         console.log('🔄 SIN FILTROS - Recargando todo');
@@ -361,20 +406,18 @@ useEffect(() => {
             const atributosData = filtrosResponse.data.filtros;
             console.log('🔄 Filtros recargados:', atributosData);
             setAtributos(atributosData);
-            
-            // NO hacer setFilters aquí - eso causa el bucle infinito
           }
         }
       }    
-    setLoadingProductos(false);
-  };
+      setLoadingProductos(false);
+    };
+    
+    if (atributos.length > 0) {
+      applyFilters();
+    }
+  }, [filters, atributos.length, categoriaActual, terminoBusqueda]); // ← Agregada dependencia
   
-  if (atributos.length > 0) {
-    applyFilters();
-  }
-}, [filters, atributos.length, categoriaActual]); // Solo estas dependencias
-  
-// Función para obtener filtros activos
+  // Función para obtener filtros activos
   const getFiltrosActivos = useCallback((): Record<string, string[]> => {
     const filtrosActivos: Record<string, string[]> = {};
     
@@ -426,7 +469,9 @@ useEffect(() => {
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
                 <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                <p className="text-gray-600">Cargando catálogo...</p>
+                <p className="text-gray-600">
+                  {terminoBusqueda ? 'Buscando productos...' : 'Cargando catálogo...'}
+                </p>
               </div>
             </div>
           </div>
@@ -465,7 +510,7 @@ useEffect(() => {
       <main className="min-h-screen bg-gray-50">
         <div className="max-w-7xl mx-auto py-4">
           
-          {/* Breadcrumb */}
+          {/* ✅ MODIFICADO: Breadcrumb con modo búsqueda */}
           <nav className="mb-4">
             <div className="flex items-center space-x-2 text-xs text-gray-600">
               <Link to="/" className="hover:text-orange-500 transition-colors">
@@ -476,97 +521,109 @@ useEffect(() => {
                 Catálogo
               </span>
               
-              {/* Mostrar jerarquía de categorías */}
-              {categoriaActual && (
+              {/* Mostrar término de búsqueda si existe */}
+              {terminoBusqueda ? (
                 <>
-                  {/* Si tiene padre, mostrarlo como LINK navegable */}
-                  {categoriaActual.parent_id && categoriaActual.padre_nombre && (
-                    <>
-                      <span>&gt;</span>
-                      <Link 
-                        to={`/catalogo?categoria=${categoriaActual.parent_id}&nombre=${encodeURIComponent(categoriaActual.padre_nombre)}`}
-                        className="hover:text-orange-500 transition-colors"
-                      >
-                        {categoriaActual.padre_nombre}
-                      </Link>
-                    </>
-                  )}
-                  
-                  {/* Mostrar la categoría actual como TEXTO (no navegable porque ya estás ahí) */}
                   <span>&gt;</span>
                   <span className="text-gray-900 font-medium">
-                    {categoriaActual.nombre}
+                    Resultados para: "{terminoBusqueda}"
                   </span>
                 </>
+              ) : (
+                /* Mostrar jerarquía de categorías en modo normal */
+                categoriaActual && (
+                  <>
+                    {/* Si tiene padre, mostrarlo como LINK navegable */}
+                    {categoriaActual.parent_id && categoriaActual.padre_nombre && (
+                      <>
+                        <span>&gt;</span>
+                        <Link 
+                          to={`/catalogo?categoria=${categoriaActual.parent_id}&nombre=${encodeURIComponent(categoriaActual.padre_nombre)}`}
+                          className="hover:text-orange-500 transition-colors"
+                        >
+                          {categoriaActual.padre_nombre}
+                        </Link>
+                      </>
+                    )}
+                    
+                    {/* Mostrar la categoría actual como TEXTO (no navegable porque ya estás ahí) */}
+                    <span>&gt;</span>
+                    <span className="text-gray-900 font-medium">
+                      {categoriaActual.nombre}
+                    </span>
+                  </>
+                )
               )}
             </div>
           </nav>
 
           <div className="flex gap-6">
             
-            {/* Sidebar de filtros - Solo desktop */}
-            <aside className="hidden lg:block w-64 flex-shrink-0">
-              <div className="bg-white rounded-lg p-4 shadow-sm">
-                
-                {/* NUEVO: Selector de subcategorías */}
-                {subcategorias.length > 0 && (
-                  <div className="mb-6 pb-4 border-b border-gray-200">
-                    <h3 className="font-bold text-sm text-gray-900 mb-3">Subcategoría</h3>
-                    <select
-                      value={subcategoriaSeleccionada || ''}
-                      onChange={(e) => handleSubcategoriaChange(e.target.value)}
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 bg-orange-50"
-                    >
-                      <option value="">Todas las subcategorías</option>
-                      {subcategorias.map((subcategoria) => (
-                        <option key={subcategoria.id} value={subcategoria.id}>
-                          {subcategoria.nombre}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold text-sm text-gray-900">Filtros</h3>
-                  <button
-                    onClick={clearFilters}
-                    className="text-xs text-orange-500 hover:text-orange-700"
-                  >
-                    Limpiar
-                  </button>
-                </div>
-
-                {/* Filtros dinámicos */}
-                {atributos.map((atributo) => (
-                  <div key={atributo.id} className="mb-6">
-                    <h3 className="font-bold text-sm text-orange-500 mb-3 uppercase">
-                      {atributo.nombre}
-                    </h3>
-                    <div className="space-y-2">
-                      {atributo.valores.map((valor) => (
-                        <label key={valor} className="flex items-center space-x-2 text-xs">
-                          <input
-                            type="checkbox"
-                            checked={filters[atributo.id.toString()]?.[valor] || false}
-                            onChange={() => handleFilterChange(atributo.id.toString(), valor)}
-                            className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
-                          />
-                          <span className="text-gray-600">{valor}</span>
-                        </label>
-                      ))}
+            {/* ✅ MODIFICADO: Sidebar de filtros - Oculto en modo búsqueda */}
+            {!terminoBusqueda && (
+              <aside className="hidden lg:block w-64 flex-shrink-0">
+                <div className="bg-white rounded-lg p-4 shadow-sm">
+                  
+                  {/* Selector de subcategorías */}
+                  {subcategorias.length > 0 && (
+                    <div className="mb-6 pb-4 border-b border-gray-200">
+                      <h3 className="font-bold text-sm text-gray-900 mb-3">Subcategoría</h3>
+                      <select
+                        value={subcategoriaSeleccionada || ''}
+                        onChange={(e) => handleSubcategoriaChange(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 bg-orange-50"
+                      >
+                        <option value="">Todas las subcategorías</option>
+                        {subcategorias.map((subcategoria) => (
+                          <option key={subcategoria.id} value={subcategoria.id}>
+                            {subcategoria.nombre}
+                          </option>
+                        ))}
+                      </select>
                     </div>
+                  )}
+                  
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-sm text-gray-900">Filtros</h3>
+                    <button
+                      onClick={clearFilters}
+                      className="text-xs text-orange-500 hover:text-orange-700"
+                    >
+                      Limpiar
+                    </button>
                   </div>
-                ))}
 
-                {/* Mostrar mensaje si no hay filtros */}
-                {atributos.length === 0 && (
-                  <div className="text-center text-gray-500 text-sm py-4">
-                    No hay filtros disponibles
-                  </div>
-                )}
-              </div>
-            </aside>
+                  {/* Filtros dinámicos */}
+                  {atributos.map((atributo) => (
+                    <div key={atributo.id} className="mb-6">
+                      <h3 className="font-bold text-sm text-orange-500 mb-3 uppercase">
+                        {atributo.nombre}
+                      </h3>
+                      <div className="space-y-2">
+                        {atributo.valores.map((valor) => (
+                          <label key={valor} className="flex items-center space-x-2 text-xs">
+                            <input
+                              type="checkbox"
+                              checked={filters[atributo.id.toString()]?.[valor] || false}
+                              onChange={() => handleFilterChange(atributo.id.toString(), valor)}
+                              className="rounded border-gray-300 text-orange-500 focus:ring-orange-500"
+                            />
+                            <span className="text-gray-600">{valor}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Mostrar mensaje si no hay filtros */}
+                  {atributos.length === 0 && (
+                    <div className="text-center text-gray-500 text-sm py-4">
+                      No hay filtros disponibles
+                    </div>
+                  )}
+                </div>
+              </aside>
+            )}
 
             {/* Área principal */}
             <div className="flex-1">
@@ -574,21 +631,23 @@ useEffect(() => {
               {/* Barra de filtros mobile + ordenar */}
               <div className="flex justify-between items-center mb-6">
                 
-                {/* Botón filtrar - Solo mobile */}
-                <button
-                  onClick={toggleMobileFilters}
-                  className="lg:hidden flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
-                  <span>Filtrar</span>
-                </button>
+                {/* ✅ MODIFICADO: Botón filtrar - Solo en modo normal */}
+                {!terminoBusqueda && (
+                  <button
+                    onClick={toggleMobileFilters}
+                    className="lg:hidden flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                    <span>Filtrar</span>
+                  </button>
+                )}
 
                 {/* Información de resultados */}
                 <div className="text-sm text-gray-600">
                   {loadingProductos ? 'Filtrando...' : `${productos.length} productos`}
-                  {subcategoriaSeleccionada && (
+                  {subcategoriaSeleccionada && !terminoBusqueda && (
                     <span className="ml-1 text-orange-600">
                       • {subcategorias.find(s => s.id === subcategoriaSeleccionada)?.nombre}
                     </span>
@@ -620,14 +679,43 @@ useEffect(() => {
                   </div>
                 </div>
               ) : productos.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-gray-600">No se encontraron productos con los filtros seleccionados.</p>
-                  <button
-                    onClick={clearFilters}
-                    className="mt-4 text-orange-500 hover:text-orange-700 text-sm underline"
-                  >
-                    Limpiar filtros
-                  </button>
+                <div className="text-center py-12 px-4">
+                  {terminoBusqueda ? (
+                    <>
+                      <div className="mb-6">
+                        <svg className="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                          No encontramos productos para "{terminoBusqueda}"
+                        </h3>
+                        <p className="text-gray-600 mb-6">
+                          Intenta con palabras más generales o revisa la ortografía.
+                          <br />
+                          También puedes explorar nuestras categorías para encontrar lo que buscas.
+                        </p>
+                      </div>
+                      
+                      <button
+                        onClick={() => window.history.back()}
+                        className="inline-flex items-center justify-center px-6 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors"
+                      >
+                        Volver atrás
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-gray-600 mb-4">
+                        No se encontraron productos con los filtros seleccionados.
+                      </p>
+                      <button
+                        onClick={clearFilters}
+                        className="text-orange-500 hover:text-orange-700 text-sm underline"
+                      >
+                        Limpiar filtros
+                      </button>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-6">
@@ -653,7 +741,7 @@ useEffect(() => {
                         {producto.descripcion}
                       </p>
 
-                      {/* Precio - CON FUNCIÓN HELPER */}
+                      {/* Precio */}
                       <div className="text-gray-800 font-medium text-sm mb-4">
                         {formatearPrecio(producto.precio)}
                       </div>
@@ -678,8 +766,8 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* Modal de filtros mobile */}
-        {showMobileFilters && (
+        {/* ✅ MODIFICADO: Modal de filtros mobile - Solo en modo normal */}
+        {!terminoBusqueda && showMobileFilters && (
           <>
             {/* Overlay */}
             <div 
@@ -703,7 +791,7 @@ useEffect(() => {
                 </button>
               </div>
               
-              {/* NUEVO: Selector de subcategorías en mobile */}
+              {/* Selector de subcategorías en mobile */}
               {subcategorias.length > 0 && (
                 <div className="mb-6 pb-4 border-b">
                   <h4 className="font-bold text-sm text-gray-900 mb-3">Subcategoría</h4>

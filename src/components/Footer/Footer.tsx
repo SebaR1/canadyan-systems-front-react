@@ -11,7 +11,7 @@ const Footer: React.FC = () => {
   };
 
   const handleEmail = () => {
-    window.location.href = 'mailto:ventas@canadisian.com.ar';
+    window.location.href = 'mailto:ventas@canadian.com.ar';
   };
 
   return (
