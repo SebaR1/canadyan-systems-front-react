@@ -27,7 +27,7 @@ const Footer: React.FC = () => {
               {/* Logo y texto de la empresa */}
               <div className="flex items-center flex-col space-x-3">
                 <img 
-                  src="/images/logo.png" 
+                  src={`${process.env.PUBLIC_URL}/images/logo.png`} 
                   alt="Logo" 
                   className="h-16 max-w-32 mb-4"
                 />                

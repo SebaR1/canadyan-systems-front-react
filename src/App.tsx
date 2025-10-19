@@ -11,7 +11,7 @@ import Perfil from './pages/Perfil/Perfil';
 
 function App() {
   return (
-    <Router>
+    <Router basename="/canadian-sistemas">
       <Routes>
         <Route path="/" element={<Home />} />
         

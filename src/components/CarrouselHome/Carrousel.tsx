@@ -9,9 +9,9 @@ const Carousel: React.FC = () => {
 
   // Imágenes placeholder - puedes reemplazar con tus imágenes reales
   const images = [
-    '/images/banner1.png',
-    '/images/banner2.png',
-    '/images/banner3.jpg'
+    `${process.env.PUBLIC_URL}/images/banner1.png`,
+    `${process.env.PUBLIC_URL}/images/banner3.jpg`,
+    `${process.env.PUBLIC_URL}/images/banner2.png`,
   ];
 
   // Auto-play funcionalidad
