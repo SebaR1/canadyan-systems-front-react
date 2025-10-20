@@ -38,7 +38,7 @@ export class UsuariosService {
 
   // Actualizar perfil del usuario actual
   async actualizarPerfil(datos: UsuarioActualizacion): Promise<ApiResponse<Usuario>> {
-    return this.apiClient.put<Usuario>('/api/routes/usuarios.php?action=profile', datos);
+    return this.apiClient.put<Usuario>('/api/routes/usuarios.php?action=update-profile', datos);
   }
 
   // Obtener usuario por ID (admin)

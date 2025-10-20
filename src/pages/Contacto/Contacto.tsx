@@ -68,7 +68,7 @@ const Contacto: React.FC = () => {
   return (
     <>
       <Header />
-      <main className="min-h-screen bg-gray-100">
+      <main className="min-h-[91vh] bg-gray-100">
         <div className="max-w-6xl mx-auto px-4 py-4">
           
           {/* Breadcrumb */}

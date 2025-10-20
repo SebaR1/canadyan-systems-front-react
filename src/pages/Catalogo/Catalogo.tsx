@@ -465,7 +465,7 @@ const Catalogo: React.FC = () => {
     return (
       <>
         <Header />
-        <main className="min-h-screen bg-gray-50">
+        <main className="min-h-[91vh] bg-gray-100">
           <div className="max-w-7xl mx-auto py-4">
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
