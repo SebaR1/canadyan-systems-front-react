@@ -9,11 +9,12 @@ export interface Usuario {
   celular?: string;
   ciudad?: string;
   direccion?: string;
-  fecha_registro: string;
-  activo: boolean;
+  created_at: string;         // ✅ Cambiado de fecha_registro a created_at
+  updated_at?: string;        // ✅ Agregado para consistencia
   provincia?: string;
   tipo_usuario_id: number;
   tipo_usuario_nombre?: string;
+  email_verificado?: boolean; // ✅ Agregado campo que sí existe en la DB
 }
 
 export interface UsuarioRegistro {
@@ -46,8 +47,9 @@ export interface Producto {
   categoria_nombre?: string;
   imagen_url?: string;
   stock: number;
-  activo: boolean;
-  fecha_creacion: string;
+  activo: boolean;          // ✅ Los productos SÍ tienen campo activo
+  created_at: string;       // ✅ Cambiado de fecha_creacion a created_at
+  updated_at?: string;      // ✅ Agregado para consistencia
 }
 
 export interface ProductoCreacion {

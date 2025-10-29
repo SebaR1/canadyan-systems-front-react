@@ -1,4 +1,3 @@
-// src/pages/Admin/VerProductos.tsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Header from '../../components/Header/Header';
@@ -23,6 +22,7 @@ const VerProductos: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeSearchTerm, setActiveSearchTerm] = useState(''); // ✅ Término actualmente aplicado
   const [totalPages, setTotalPages] = useState(0);
   const [totalProductos, setTotalProductos] = useState(0);
   const [changingStatus, setChangingStatus] = useState<number | null>(null);
@@ -30,20 +30,22 @@ const VerProductos: React.FC = () => {
 
   const productsPerPage = 10;
 
-  // Cargar productos
+  // Cargar productos - cuando cambie la página o el filtro activo
   useEffect(() => {
     loadProductos();
-  }, [currentPage, searchTerm]);
+  }, [currentPage, activeSearchTerm]); // ✅ Usa activeSearchTerm, no searchTerm
 
   const loadProductos = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Usar el endpoint de admin que incluye validación
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=list-admin&page=${currentPage}&limit=${productsPerPage}&search=${encodeURIComponent(searchTerm)}`, {
+      // Usar el término de búsqueda activo, no el que está siendo escrito
+      const searchParam = activeSearchTerm.trim() ? `&search=${encodeURIComponent(activeSearchTerm)}` : '';
+      
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=list-admin&page=${currentPage}&limit=${productsPerPage}${searchParam}`, {
         method: 'GET',
-        credentials: 'include', // ← IMPORTANTE: Incluir cookies de sesión
+        credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
@@ -51,14 +53,18 @@ const VerProductos: React.FC = () => {
       });
       
       const result = await response.json();
+      
+      // ✅ Debug: Log para ver qué está recibiendo el backend
+      console.log('🔍 Búsqueda productos enviada:', activeSearchTerm);
+      console.log('📡 URL:', response.url);
+      console.log('📥 Respuesta:', result);
 
       if (result.success && result.data) {
         setProductos(result.data.productos || []);
         setTotalProductos(result.data.pagination?.total || 0);
-        setTotalPages(result.data.pagination?.total_pages || 0);
+        setTotalPages(result.data.pagination?.pages || 0);
         setAccessDenied(false);
       } else {
-        // Si es error 403, es acceso denegado
         if (response.status === 403) {
           setAccessDenied(true);
           setError('Acceso denegado. Solo administradores pueden ver esta página.');
@@ -77,7 +83,13 @@ const VerProductos: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
-    loadProductos();
+    setActiveSearchTerm(searchTerm); // ✅ Activar el filtro
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    setActiveSearchTerm(''); // ✅ Limpiar el filtro activo
+    setCurrentPage(1);
   };
 
   const toggleProductStatus = async (productId: number, currentStatus: boolean) => {
@@ -86,7 +98,7 @@ const VerProductos: React.FC = () => {
       
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=toggle&id=${productId}`, {
         method: 'PATCH',
-        credentials: 'include', // ← IMPORTANTE: Incluir cookies de sesión
+        credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
@@ -97,7 +109,6 @@ const VerProductos: React.FC = () => {
       const result = await response.json();
       
       if (result.success) {
-        // Actualizar el producto en la lista local
         setProductos(prev => 
           prev.map(p => 
             p.id === productId 
@@ -117,7 +128,17 @@ const VerProductos: React.FC = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-AR');
+    if (!dateString) return '-';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('es-AR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (error) {
+      return '-';
+    }
   };
 
   const formatPrice = (price: number) => {
@@ -196,7 +217,7 @@ const VerProductos: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
               
               {/* Búsqueda */}
-              <form onSubmit={handleSearch} className="flex space-x-4">
+              <form onSubmit={handleSearch} className="flex space-x-2">
                 <input
                   type="text"
                   value={searchTerm}
@@ -210,11 +231,29 @@ const VerProductos: React.FC = () => {
                 >
                   Buscar
                 </button>
+                {activeSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={handleClearSearch}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                  >
+                    Limpiar
+                  </button>
+                )}
               </form>
 
               {/* Estadísticas */}
               <div className="text-sm text-gray-500">
-                Total: {totalProductos} productos
+                {activeSearchTerm ? (
+                  <>
+                    <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs mr-2">
+                      Filtrando: "{activeSearchTerm}"
+                    </span>
+                    {totalProductos} resultado{totalProductos !== 1 ? 's' : ''}
+                  </>
+                ) : (
+                  <>Total: {totalProductos} productos</>
+                )}
               </div>
             </div>
           </div>
@@ -226,7 +265,7 @@ const VerProductos: React.FC = () => {
                 <div className="ml-3">
                   <p className="text-sm text-red-700">{error}</p>
                   <button 
-                    onClick={loadProductos}
+                    onClick={() => loadProductos()}
                     className="mt-2 text-sm text-red-600 hover:text-red-500"
                   >
                     Intentar de nuevo
@@ -330,7 +369,7 @@ const VerProductos: React.FC = () => {
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {formatDate(producto.fecha_creacion)}
+                            {formatDate(producto.created_at)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                             {/* Botón cambiar estado */}

@@ -1,4 +1,3 @@
-// src/pages/Admin/VerUsuarios.tsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
@@ -23,26 +22,29 @@ const VerUsuarios: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+  const [activeSearchTerm, setActiveSearchTerm] = useState(''); // ✅ Término actualmente aplicado
   const [totalPages, setTotalPages] = useState(0);
   const [totalUsuarios, setTotalUsuarios] = useState(0);
   const [accessDenied, setAccessDenied] = useState(false);
 
   const usersPerPage = 10;
 
-  // Cargar usuarios
+  // Cargar usuarios - cuando cambie la página o el filtro activo
   useEffect(() => {
     loadUsuarios();
-  }, [currentPage, searchTerm]);
+  }, [currentPage, activeSearchTerm]); // ✅ Usa activeSearchTerm, no searchTerm
 
   const loadUsuarios = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Usar el endpoint correcto con cookies de sesión
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/usuarios.php?action=list-all&page=${currentPage}&limit=${usersPerPage}&search=${encodeURIComponent(searchTerm)}`, {
+      // Usar el término de búsqueda activo, no el que está siendo escrito
+      const searchParam = activeSearchTerm.trim() ? `&search=${encodeURIComponent(activeSearchTerm)}` : '';
+      
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/usuarios.php?action=list-all&page=${currentPage}&limit=${usersPerPage}${searchParam}`, {
         method: 'GET',
-        credentials: 'include', // ← IMPORTANTE: Incluir cookies de sesión
+        credentials: 'include',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
@@ -50,6 +52,11 @@ const VerUsuarios: React.FC = () => {
       });
       
       const result = await response.json();
+      
+      // ✅ Debug: Log para ver qué está recibiendo el backend
+      console.log('🔍 Búsqueda enviada:', activeSearchTerm);
+      console.log('📡 URL:', response.url);
+      console.log('📥 Respuesta:', result);
 
       if (result.success && result.data) {
         setUsuarios(result.data.usuarios || []);
@@ -57,7 +64,6 @@ const VerUsuarios: React.FC = () => {
         setTotalPages(result.data.pagination?.pages || 0);
         setAccessDenied(false);
       } else {
-        // Si es error 403, es acceso denegado
         if (response.status === 403) {
           setAccessDenied(true);
           setError('Acceso denegado. Solo administradores pueden ver esta página.');
@@ -76,7 +82,13 @@ const VerUsuarios: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
-    loadUsuarios();
+    setActiveSearchTerm(searchTerm); // ✅ Activar el filtro
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    setActiveSearchTerm(''); // ✅ Limpiar el filtro activo
+    setCurrentPage(1);
   };
 
   const formatDate = (dateString: string) => {
@@ -89,11 +101,7 @@ const VerUsuarios: React.FC = () => {
       : 'bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium';
   };
 
-  const getStatusClass = (activo: boolean) => {
-    return activo
-      ? 'bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium'
-      : 'bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-medium';
-  };
+  // ✅ ELIMINADA la función getStatusClass porque ya no se usa
 
   // Mostrar loading mientras carga
   if (loading) {
@@ -154,12 +162,12 @@ const VerUsuarios: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
               
               {/* Búsqueda */}
-              <form onSubmit={handleSearch} className="flex space-x-4">
+              <form onSubmit={handleSearch} className="flex space-x-2">
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscar por nombre, email o empresa..."
+                  placeholder="Buscar por nombre, apellido, email, empresa o CUIT..."
                   className="flex-1 min-w-0 px-4 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500"
                 />
                 <button
@@ -168,11 +176,29 @@ const VerUsuarios: React.FC = () => {
                 >
                   Buscar
                 </button>
+                {activeSearchTerm && (
+                  <button
+                    type="button"
+                    onClick={handleClearSearch}
+                    className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                  >
+                    Limpiar
+                  </button>
+                )}
               </form>
 
               {/* Estadísticas */}
               <div className="text-sm text-gray-500">
-                Total: {totalUsuarios} usuarios
+                {activeSearchTerm ? (
+                  <>
+                    <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs mr-2">
+                      Filtrando: "{activeSearchTerm}"
+                    </span>
+                    {totalUsuarios} resultado{totalUsuarios !== 1 ? 's' : ''}
+                  </>
+                ) : (
+                  <>Total: {totalUsuarios} usuarios</>
+                )}
               </div>
             </div>
           </div>
@@ -184,7 +210,7 @@ const VerUsuarios: React.FC = () => {
                 <div className="ml-3">
                   <p className="text-sm text-red-700">{error}</p>
                   <button 
-                    onClick={loadUsuarios}
+                    onClick={() => loadUsuarios()}
                     className="mt-2 text-sm text-red-600 hover:text-red-500"
                   >
                     Intentar de nuevo
@@ -223,9 +249,7 @@ const VerUsuarios: React.FC = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Tipo
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Estado
-                        </th>
+                        {/* ✅ ELIMINADA LA COLUMNA "ESTADO" */}
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Registro
                         </th>
@@ -265,13 +289,9 @@ const VerUsuarios: React.FC = () => {
                               {usuario.tipo_usuario_id === 2 ? 'Admin' : 'Usuario'}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={getStatusClass(usuario.activo)}>
-                              {usuario.activo ? 'Activo' : 'Inactivo'}
-                            </span>
-                          </td>
+                          {/* ✅ ELIMINADA LA CELDA DEL ESTADO */}
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {formatDate(usuario.fecha_registro)}
+                            {formatDate(usuario.created_at)}
                           </td>
                         </tr>
                       ))}
