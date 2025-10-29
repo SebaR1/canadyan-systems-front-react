@@ -163,11 +163,27 @@ const Header: React.FC = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    setUser(null);
-    setShowUserDropdown(false);
-    navigate('/');
+  const handleLogout = async () => {
+    try {
+      // 1. Llamar endpoint del backend para destruir sesión
+      await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/usuarios.php?action=logout`, {
+        method: 'POST',
+        credentials: 'include', // ← Envía PHPSESSID
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+    } catch (error) {
+      console.error('Error en logout:', error);
+    } finally {
+      // 2. Limpiar frontend siempre
+      localStorage.removeItem('user');
+      localStorage.removeItem('auth_token'); // Por si existe
+      setUser(null);
+      setShowUserDropdown(false);
+      navigate('/');
+    }
   };
 
   const isAdmin = () => {
@@ -236,7 +252,7 @@ const Header: React.FC = () => {
                               className="w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors text-blue-600"
                               onClick={() => {
                                 setShowUserDropdown(false);
-                                navigate('/admin/users');
+                                navigate('/admin/usuarios');
                               }}
                             >
                               👥 Ver Usuarios
@@ -246,10 +262,10 @@ const Header: React.FC = () => {
                               className="w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors text-blue-600"
                               onClick={() => {
                                 setShowUserDropdown(false);
-                                navigate('/admin/products');
+                                navigate('/admin/productos');
                               }}
                             >
-                              📦 Crear Productos
+                              📦 Ver Productos
                             </button>
                           </>
                         )}

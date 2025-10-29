@@ -9,6 +9,10 @@ import ProductDetail from './pages/ProductDetail/ProductDetail';
 import Contacto from './pages/Contacto/Contacto';
 import Perfil from './pages/Perfil/Perfil';
 
+// Admin Pages
+import VerUsuarios from './pages/Admin/VerUsuarios';
+import VerProductos from './pages/Admin/VerProductos';
+
 function App() {
   return (
     <Router basename="/canadian-sistemas">
@@ -27,6 +31,10 @@ function App() {
         
         <Route path="/contacto" element={<Contacto />} />
         <Route path="/perfil" element={<Perfil />} />
+
+        {/* RUTAS DE ADMIN - Protegidas por validación del backend */}
+        <Route path="/admin/usuarios" element={<VerUsuarios />} />
+        <Route path="/admin/productos" element={<VerProductos />} />
       </Routes>
     </Router>
   );

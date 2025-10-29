@@ -270,6 +270,11 @@ const AccesoCliente: React.FC<AccesoClienteProps> = ({ isOpen, onClose }) => {
                   <p>Email: admin@ejemplo.com</p>
                   <p>Contraseña: password</p>
               </div>
+              <div className="text-center">
+                  <p>Datos Cliente ejemplo</p>
+                  <p>Email: usuario@ejemplo.com</p>
+                  <p>Contraseña: password</p>
+              </div>
 
 
               {/* Botón Ingresar */}
