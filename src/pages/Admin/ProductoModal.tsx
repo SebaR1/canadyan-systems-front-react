@@ -116,64 +116,71 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
     }
   };
 
-  // Cargar atributos
-  const loadAtributos = async () => {
-    try {
-      setLoadingAtributos(true);
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/atributos.php?action=list`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const result = await response.json();
-      console.log('🏷️ Respuesta atributos modal:', result);
-      
-      if (result.success) {
-        // La API devuelve directamente los atributos, no en result.data
-        setAtributos(result.atributos || []);
+const loadAtributos = async () => {
+  try {
+    setLoadingAtributos(true);
+    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/atributos.php?action=list`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       }
-    } catch (error) {
-      console.error('Error cargando atributos:', error);
-    } finally {
-      setLoadingAtributos(false);
+    });
+    
+    const result = await response.json();
+    console.log('🏷️ Respuesta atributos modal:', result);
+    console.log('🏷️ result.success:', result.success);
+    console.log('🏷️ result.data:', result.data);
+    console.log('🏷️ result.data?.atributos:', result.data?.atributos);
+    
+    if (result.success && result.data && result.data.atributos) {
+      const atributosData = result.data.atributos;
+      console.log('✅ Seteando atributos:', atributosData);
+      setAtributos(atributosData);
+    } else {
+      console.log('❌ No se cumplió la condición para setear atributos');
     }
-  };
+  } catch (error) {
+    console.error('Error cargando atributos:', error);
+  } finally {
+    setLoadingAtributos(false);
+  }
+};
 
-  // Cargar atributos del producto (solo para edición)
-  const loadProductoAtributos = async (productoId: number) => {
-    try {
-      setLoadingProductoAtributos(true);
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/atributos.php?action=by-product&producto_id=${productoId}`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      const result = await response.json();
-      if (result.success && result.data) {
-        const attrs = result.data.atributos || [];
-        setProductoAtributos(attrs);
-        
-        // Convertir a formato para el formulario
-        const attrValues: AtributoValue[] = attrs.map((attr: ProductoAtributo) => ({
-          atributo_id: attr.atributo_id,
-          valor: attr.valor
-        }));
-        setAtributosValues(attrValues);
+const loadProductoAtributos = async (productoId: number) => {
+  try {
+    setLoadingProductoAtributos(true);
+    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/atributos.php?action=by-product&producto_id=${productoId}`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       }
-    } catch (error) {
-      console.error('Error cargando atributos del producto:', error);
-    } finally {
-      setLoadingProductoAtributos(false);
+    });
+    
+    const result = await response.json();
+    console.log('📦 Atributos del producto:', result);
+    
+    if (result.success && result.data) {
+      const attrs = result.data.atributos || [];
+      console.log('📦 Atributos mapeados:', attrs);
+      setProductoAtributos(attrs);
+      
+      const attrValues: AtributoValue[] = attrs.map((attr: ProductoAtributo) => ({
+        atributo_id: attr.atributo_id,
+        valor: attr.valor
+      }));
+      console.log('📦 Valores de atributos:', attrValues);
+      setAtributosValues(attrValues);
     }
-  };
+  } catch (error) {
+    console.error('Error cargando atributos del producto:', error);
+  } finally {
+    setLoadingProductoAtributos(false);
+  }
+};
 
   // Función recursiva para aplanar categorías
   const flattenCategorias = (cats: Categoria[], prefix: string = '', level: number = 0): Array<{id: number, nombre: string, level: number}> => {
@@ -476,46 +483,38 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-3 max-h-64 overflow-y-auto">
-                    {atributos.map(atributo => (
-                      <div key={atributo.id} className="bg-gray-50 p-3 rounded-lg">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          {atributo.nombre}
-                          <span className="ml-1 text-xs text-blue-600">({atributo.tipo})</span>
-                        </label>
-                        
-                        {atributo.tipo === 'boolean' ? (
-                          <select
-                            value={getAtributoValue(atributo.id)}
-                            onChange={(e) => handleAtributoChange(atributo.id, e.target.value)}
-                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
-                            disabled={loading}
-                          >
-                            <option value="">Sin especificar</option>
-                            <option value="1">Sí</option>
-                            <option value="0">No</option>
-                          </select>
-                        ) : atributo.tipo === 'number' ? (
-                          <input
-                            type="number"
-                            step="any"
-                            value={getAtributoValue(atributo.id)}
-                            onChange={(e) => handleAtributoChange(atributo.id, e.target.value)}
-                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
-                            placeholder="Valor numérico"
-                            disabled={loading}
-                          />
-                        ) : (
-                          <input
-                            type="text"
-                            value={getAtributoValue(atributo.id)}
-                            onChange={(e) => handleAtributoChange(atributo.id, e.target.value)}
-                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
-                            placeholder="Valor del atributo"
-                            disabled={loading}
-                          />
-                        )}
-                      </div>
-                    ))}
+                        {atributos.map(atributo => (
+                          <div key={atributo.id} className="bg-gray-50 p-3 rounded-lg">
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              {atributo.nombre}
+                            </label>
+                            
+                            {atributo.tipo === 'select' && atributo.valores && atributo.valores.length > 0 ? (
+                              <select
+                                value={getAtributoValue(atributo.id)}
+                                onChange={(e) => handleAtributoChange(atributo.id, e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                disabled={loading}
+                              >
+                                <option value="">Seleccionar...</option>
+                                {atributo.valores.map((valor, idx) => (
+                                  <option key={idx} value={valor}>
+                                    {valor}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                value={getAtributoValue(atributo.id)}
+                                onChange={(e) => handleAtributoChange(atributo.id, e.target.value)}
+                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                placeholder="Valor del atributo"
+                                disabled={loading}
+                              />
+                            )}
+                          </div>
+                        ))}
                   </div>
                 )}
               </div>

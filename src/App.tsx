@@ -12,6 +12,7 @@ import Perfil from './pages/Perfil/Perfil';
 // Admin Pages
 import VerUsuarios from './pages/Admin/VerUsuarios';
 import VerProductos from './pages/Admin/VerProductos';
+import CategoriasAtributos from './pages/Admin/CategoriasAtributos';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
         {/* RUTAS DE ADMIN - Protegidas por validación del backend */}
         <Route path="/admin/usuarios" element={<VerUsuarios />} />
         <Route path="/admin/productos" element={<VerProductos />} />
+        <Route path="/admin/categorias-atributos" element={<CategoriasAtributos />} />
       </Routes>
     </Router>
   );

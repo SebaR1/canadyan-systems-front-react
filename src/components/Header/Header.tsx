@@ -267,6 +267,16 @@ const Header: React.FC = () => {
                             >
                               📦 Ver Productos
                             </button>
+
+                            <button 
+                              className="w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors text-blue-600"
+                              onClick={() => {
+                                setShowUserDropdown(false);
+                                navigate('/admin/categorias-atributos');
+                              }}
+                            >
+                              🏷️ Categorías y Atributos
+                            </button>
                           </>
                         )}
                         

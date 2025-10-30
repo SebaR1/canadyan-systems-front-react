@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
-
+import CategoriaModal from './CategoriaModal';
+import AtributoModal from './AtributoModal';
 
 // Interfaces
 interface Categoria {
@@ -97,8 +98,6 @@ const CategoriasAtributos: React.FC = () => {
   const loadAtributos = async () => {
     try {
       setLoadingAtributos(true);
-      setErrorAtributos(null);
-
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/atributos.php?action=list`, {
         method: 'GET',
         credentials: 'include',
@@ -109,16 +108,14 @@ const CategoriasAtributos: React.FC = () => {
       });
       
       const result = await response.json();
-      console.log('🏷️ Respuesta atributos:', result);
-
-      if (result.success && result.data) {
-        setAtributos(result.data.atributos || []);
-      } else {
-        throw new Error(result.error || 'Error al cargar atributos');
+      console.log('🏷️ Respuesta atributos modal:', result);
+      
+      if (result.success) {
+        // ✅ CORREGIDO: Buscar en result.data.atributos igual que en CategoriasAtributos
+        setAtributos(result.data?.atributos || []);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error cargando atributos:', error);
-      setErrorAtributos(error.message || 'Error de conexión');
     } finally {
       setLoadingAtributos(false);
     }
@@ -508,13 +505,30 @@ const CategoriasAtributos: React.FC = () => {
       </main>
       <Footer />
 
-      {/* Modales - Los voy a crear en los próximos artefactos */}
+      {/* Modales */}
       {showCategoriaModal && (
-        <div>Modal de Categoría - Por implementar</div>
+        <CategoriaModal
+          isOpen={showCategoriaModal}
+          onClose={() => {
+            setShowCategoriaModal(false);
+            setEditingCategoria(null);
+          }}
+          onSubmit={handleCategoriaSubmit}
+          editing={editingCategoria}
+          categorias={categorias}
+        />
       )}
-      
+
       {showAtributoModal && (
-        <div>Modal de Atributo - Por implementar</div>
+        <AtributoModal
+          isOpen={showAtributoModal}
+          onClose={() => {
+            setShowAtributoModal(false);
+            setEditingAtributo(null);
+          }}
+          onSubmit={handleAtributoSubmit}
+          editing={editingAtributo}
+        />
       )}
     </>
   );

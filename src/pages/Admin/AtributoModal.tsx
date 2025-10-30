@@ -85,9 +85,7 @@ const AtributoModal: React.FC<AtributoModalProps> = ({
 
   const tiposAtributo = [
     { value: 'text', label: 'Texto', description: 'Campo de texto libre' },
-    { value: 'select', label: 'Selección', description: 'Lista de opciones predefinidas' },
-    { value: 'number', label: 'Número', description: 'Solo valores numéricos' },
-    { value: 'boolean', label: 'Sí/No', description: 'Verdadero o falso' }
+    { value: 'select', label: 'Selección', description: 'Lista de opciones predefinidas (valores separados por coma)' }
   ];
 
   if (!isOpen) return null;

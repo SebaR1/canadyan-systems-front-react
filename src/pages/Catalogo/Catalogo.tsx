@@ -371,28 +371,12 @@ const Catalogo: React.FC = () => {
         console.log('🔍 Filtros enviados al backend:', filtrosActivos);
         console.log('🔍 Respuesta filtros dinámicos:', filtrosDinamicosResponse.data);
               
-        if (filtrosDinamicosResponse.success && filtrosDinamicosResponse.data) {
-          const atributosActualizados = filtrosDinamicosResponse.data.filtros;
-          
-          // Mantener estructura original pero actualizar valores disponibles
-          setAtributos(prevAtributos => {
-            return prevAtributos.map(atributoOriginal => {
-              const atributoActualizado = atributosActualizados.find(
-                a => a.id === atributoOriginal.id
-              );
-              
-              if (atributoActualizado) {
-                return {
-                  ...atributoOriginal,
-                  valores: atributoActualizado.valores
-                };
-              }
-              
-              // Si no hay valores dinámicos, mantener valores originales
-              return atributoOriginal;
-            });
-          });
-        }
+      if (filtrosDinamicosResponse.success && filtrosDinamicosResponse.data) {
+        const atributosActualizados = filtrosDinamicosResponse.data.filtros;
+        
+        // Reemplazar COMPLETAMENTE los filtros
+        setAtributos(atributosActualizados);
+      }
             
       } else {
         // Sin filtros - recargar productos originales Y filtros completos
