@@ -157,6 +157,7 @@ export interface Atributo {
   id: number;
   nombre: string;
   tipo: 'text' | 'select' | 'number' | 'boolean';
+  valores?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -164,11 +165,13 @@ export interface Atributo {
 export interface AtributoCreacion {
   nombre: string;
   tipo: 'text' | 'select' | 'number' | 'boolean';
+  valores?: string[];
 }
 
 export interface AtributoActualizacion {
   nombre?: string;
   tipo?: 'text' | 'select' | 'number' | 'boolean';
+  valores?: string[];
 }
 
 export interface ProductoAtributo {

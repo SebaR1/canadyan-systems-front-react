@@ -4,13 +4,14 @@ interface Atributo {
   id: number;
   nombre: string;
   tipo: 'text' | 'select' | 'number' | 'boolean';
+  valores?: string[];
   created_at: string;
 }
 
 interface AtributoModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { nombre: string; tipo: string }) => Promise<void>;
+  onSubmit: (data: { nombre: string; tipo: string; valores?: string[] }) => Promise<void>;
   editing?: Atributo | null;
 }
 
@@ -22,8 +23,10 @@ const AtributoModal: React.FC<AtributoModalProps> = ({
 }) => {
   const [formData, setFormData] = useState({
     nombre: '',
-    tipo: 'text' as string
+    tipo: 'text' as string,
+    valores: [] as string[]
   });
+  const [valoresInput, setValoresInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
@@ -32,13 +35,17 @@ const AtributoModal: React.FC<AtributoModalProps> = ({
     if (editing) {
       setFormData({
         nombre: editing.nombre,
-        tipo: editing.tipo
+        tipo: editing.tipo,
+        valores: editing.valores || []
       });
+      setValoresInput(editing.valores ? editing.valores.join(', ') : '');
     } else {
       setFormData({
         nombre: '',
-        tipo: 'text'
+        tipo: 'text',
+        valores: []
       });
+      setValoresInput('');
     }
     setErrors({});
   }, [editing, isOpen]);
@@ -56,6 +63,18 @@ const AtributoModal: React.FC<AtributoModalProps> = ({
       newErrors.tipo = 'El tipo es requerido';
     }
 
+    // Validar valores si es tipo 'select'
+    if (formData.tipo === 'select') {
+      if (!valoresInput.trim()) {
+        newErrors.valores = 'Debe ingresar al menos un valor para el atributo tipo selección';
+      } else {
+        const valoresArray = valoresInput.split(',').map(v => v.trim()).filter(v => v !== '');
+        if (valoresArray.length === 0) {
+          newErrors.valores = 'Debe ingresar al menos un valor válido';
+        }
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -70,10 +89,19 @@ const AtributoModal: React.FC<AtributoModalProps> = ({
     setLoading(true);
 
     try {
-      const submitData = {
+      const submitData: { nombre: string; tipo: string; valores?: string[] } = {
         nombre: formData.nombre.trim(),
         tipo: formData.tipo
       };
+
+      // Si es tipo 'select', procesar los valores
+      if (formData.tipo === 'select') {
+        const valoresArray = valoresInput
+          .split(',')
+          .map(v => v.trim())
+          .filter(v => v !== '');
+        submitData.valores = valoresArray;
+      }
 
       await onSubmit(submitData);
     } catch (error) {
@@ -85,7 +113,7 @@ const AtributoModal: React.FC<AtributoModalProps> = ({
 
   const tiposAtributo = [
     { value: 'text', label: 'Texto', description: 'Campo de texto libre' },
-    { value: 'select', label: 'Selección', description: 'Lista de opciones predefinidas (valores separados por coma)' }
+    { value: 'select', label: 'Selección', description: 'Lista de opciones predefinidas' }
   ];
 
   if (!isOpen) return null;
@@ -150,7 +178,13 @@ const AtributoModal: React.FC<AtributoModalProps> = ({
                       name="tipo"
                       value={tipo.value}
                       checked={formData.tipo === tipo.value}
-                      onChange={(e) => setFormData({...formData, tipo: e.target.value})}
+                      onChange={(e) => {
+                        setFormData({...formData, tipo: e.target.value});
+                        // Limpiar valores si cambia de tipo
+                        if (e.target.value !== 'select') {
+                          setValoresInput('');
+                        }
+                      }}
                       className="mt-1 mr-3 text-green-600 focus:ring-green-500 border-gray-300"
                       disabled={loading}
                     />
@@ -165,6 +199,50 @@ const AtributoModal: React.FC<AtributoModalProps> = ({
                 <p className="mt-1 text-sm text-red-600">{errors.tipo}</p>
               )}
             </div>
+
+            {/* Campo de valores (solo si es tipo 'select') */}
+            {formData.tipo === 'select' && (
+              <div>
+                <label htmlFor="valores" className="block text-sm font-medium text-gray-700 mb-1">
+                  Valores disponibles *
+                </label>
+                <input
+                  type="text"
+                  id="valores"
+                  value={valoresInput}
+                  onChange={(e) => setValoresInput(e.target.value)}
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent ${
+                    errors.valores ? 'border-red-500' : 'border-gray-300'
+                  }`}
+                  placeholder="Ej: Rojo, Azul, Verde, Amarillo"
+                  disabled={loading}
+                />
+                {errors.valores && (
+                  <p className="mt-1 text-sm text-red-600">{errors.valores}</p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Separe los valores con comas (,). Ejemplo: Pequeño, Mediano, Grande
+                </p>
+                
+                {/* Preview de valores */}
+                {valoresInput.trim() && (
+                  <div className="mt-2 p-2 bg-gray-50 rounded-md">
+                    <p className="text-xs font-medium text-gray-700 mb-1">Vista previa:</p>
+                    <div className="flex flex-wrap gap-1">
+                      {valoresInput.split(',').map((valor, idx) => {
+                        const valorTrim = valor.trim();
+                        if (!valorTrim) return null;
+                        return (
+                          <span key={idx} className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded">
+                            {valorTrim}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Botones */}
             <div className="flex items-center justify-end space-x-3 pt-4">
@@ -203,9 +281,7 @@ const AtributoModal: React.FC<AtributoModalProps> = ({
                 <p><strong>Tipos de atributo:</strong></p>
                 <ul className="mt-1 space-y-1">
                   <li><strong>Texto:</strong> Para valores como "Rojo", "Mediano", etc.</li>
-                  <li><strong>Selección:</strong> Para opciones fijas como "S/M/L"</li>
-                  <li><strong>Número:</strong> Para valores como "100", "2.5", etc.</li>
-                  <li><strong>Sí/No:</strong> Para características como "Resistente al agua"</li>
+                  <li><strong>Selección:</strong> Para opciones fijas que el usuario elegirá de una lista desplegable</li>
                 </ul>
               </div>
             </div>

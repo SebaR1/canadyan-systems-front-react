@@ -40,6 +40,7 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
   });
 
   const [atributosValues, setAtributosValues] = useState<AtributoValue[]>([]);
+  const [atributosSeleccionados, setAtributosSeleccionados] = useState<number[]>([]); // ← NUEVO
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [atributos, setAtributos] = useState<Atributo[]>([]);
   const [productoAtributos, setProductoAtributos] = useState<ProductoAtributo[]>([]);
@@ -85,6 +86,7 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
       activo: true
     });
     setAtributosValues([]);
+    setAtributosSeleccionados([]); // ← NUEVO
     setProductoAtributos([]);
     setErrors({});
   };
@@ -103,10 +105,8 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
       });
       
       const result = await response.json();
-      console.log('🗂️ Respuesta categorías modal:', result);
       
       if (result.success) {
-        // La API devuelve las categorías en result.data.tree
         setCategorias(result.data?.tree || result.tree || []);
       }
     } catch (error) {
@@ -116,89 +116,99 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
     }
   };
 
-const loadAtributos = async () => {
-  try {
-    setLoadingAtributos(true);
-    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/atributos.php?action=list`, {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    const result = await response.json();
-    console.log('🏷️ Respuesta atributos modal:', result);
-    console.log('🏷️ result.success:', result.success);
-    console.log('🏷️ result.data:', result.data);
-    console.log('🏷️ result.data?.atributos:', result.data?.atributos);
-    
-    if (result.success && result.data && result.data.atributos) {
-      const atributosData = result.data.atributos;
-      console.log('✅ Seteando atributos:', atributosData);
-      setAtributos(atributosData);
-    } else {
-      console.log('❌ No se cumplió la condición para setear atributos');
-    }
-  } catch (error) {
-    console.error('Error cargando atributos:', error);
-  } finally {
-    setLoadingAtributos(false);
-  }
-};
-
-const loadProductoAtributos = async (productoId: number) => {
-  try {
-    setLoadingProductoAtributos(true);
-    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/atributos.php?action=by-product&producto_id=${productoId}`, {
-      method: 'GET',
-      credentials: 'include',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    const result = await response.json();
-    console.log('📦 Atributos del producto:', result);
-    
-    if (result.success && result.data) {
-      const attrs = result.data.atributos || [];
-      console.log('📦 Atributos mapeados:', attrs);
-      setProductoAtributos(attrs);
+  const loadAtributos = async () => {
+    try {
+      setLoadingAtributos(true);
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/atributos.php?action=list`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
       
-      const attrValues: AtributoValue[] = attrs.map((attr: ProductoAtributo) => ({
-        atributo_id: attr.atributo_id,
-        valor: attr.valor
-      }));
-      console.log('📦 Valores de atributos:', attrValues);
-      setAtributosValues(attrValues);
+      const result = await response.json();
+      
+      if (result.success && result.data && result.data.atributos) {
+        setAtributos(result.data.atributos);
+      }
+    } catch (error) {
+      console.error('Error cargando atributos:', error);
+    } finally {
+      setLoadingAtributos(false);
     }
-  } catch (error) {
-    console.error('Error cargando atributos del producto:', error);
-  } finally {
-    setLoadingProductoAtributos(false);
-  }
-};
+  };
 
-  // Función recursiva para aplanar categorías
-  const flattenCategorias = (cats: Categoria[], prefix: string = '', level: number = 0): Array<{id: number, nombre: string, level: number}> => {
-    let result: Array<{id: number, nombre: string, level: number}> = [];
+  const loadProductoAtributos = async (productoId: number) => {
+    try {
+      setLoadingProductoAtributos(true);
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/atributos.php?action=by-product&producto_id=${productoId}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        const attrs = result.data.atributos || [];
+        setProductoAtributos(attrs);
+        
+        const attrValues: AtributoValue[] = attrs.map((attr: ProductoAtributo) => ({
+          atributo_id: attr.atributo_id,
+          valor: attr.valor
+        }));
+        setAtributosValues(attrValues);
+        
+        // ← NUEVO: Marcar como seleccionados los atributos que ya tiene el producto
+        const attrIds = attrs.map((attr: ProductoAtributo) => attr.atributo_id);
+        setAtributosSeleccionados(attrIds);
+      }
+    } catch (error) {
+      console.error('Error cargando atributos del producto:', error);
+    } finally {
+      setLoadingProductoAtributos(false);
+    }
+  };
+
+  // ← NUEVA FUNCIÓN: Aplanar categorías con indicador visual de jerarquía
+  const flattenCategorias = (cats: Categoria[], prefix: string = ''): Array<{id: number, nombre: string, displayName: string}> => {
+    let result: Array<{id: number, nombre: string, displayName: string}> = [];
     
     cats.forEach(cat => {
+      const displayName = prefix ? `${prefix} → ${cat.nombre}` : cat.nombre;
+      
       result.push({
         id: cat.id,
-        nombre: prefix + cat.nombre,
-        level
+        nombre: cat.nombre,
+        displayName: displayName
       });
       
       if (cat.children && cat.children.length > 0) {
-        result = result.concat(flattenCategorias(cat.children, prefix + '  ', level + 1));
+        const newPrefix = prefix ? `${prefix} → ${cat.nombre}` : cat.nombre;
+        result = result.concat(flattenCategorias(cat.children, newPrefix));
       }
     });
     
     return result;
+  };
+
+  // ← NUEVA FUNCIÓN: Agregar atributo a la lista
+  const handleAgregarAtributo = (atributoId: string) => {
+    const id = parseInt(atributoId);
+    if (id && !atributosSeleccionados.includes(id)) {
+      setAtributosSeleccionados([...atributosSeleccionados, id]);
+    }
+  };
+
+  // ← NUEVA FUNCIÓN: Quitar atributo de la lista
+  const handleQuitarAtributo = (atributoId: number) => {
+    setAtributosSeleccionados(atributosSeleccionados.filter(id => id !== atributoId));
+    setAtributosValues(atributosValues.filter(attr => attr.atributo_id !== atributoId));
   };
 
   // Manejar cambios en atributos
@@ -262,7 +272,6 @@ const loadProductoAtributos = async (productoId: number) => {
     try {
       setLoading(true);
 
-      // Preparar datos del producto
       const productoData = {
         nombre: formData.nombre.trim(),
         descripcion: formData.descripcion.trim(),
@@ -273,7 +282,6 @@ const loadProductoAtributos = async (productoId: number) => {
         activo: formData.activo
       };
 
-      // Preparar atributos (solo los que tienen valor)
       const atributos = atributosValues.filter(attr => attr.valor.trim() !== '');
 
       await onSubmit({
@@ -290,6 +298,9 @@ const loadProductoAtributos = async (productoId: number) => {
   if (!isOpen) return null;
 
   const flatCategorias = flattenCategorias(categorias);
+  
+  // ← NUEVO: Filtrar atributos disponibles (que no están seleccionados)
+  const atributosDisponibles = atributos.filter(attr => !atributosSeleccionados.includes(attr.id));
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
@@ -313,7 +324,6 @@ const loadProductoAtributos = async (productoId: number) => {
 
           {/* Formulario */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Grid principal */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               
               {/* Columna izquierda - Datos básicos */}
@@ -439,7 +449,7 @@ const loadProductoAtributos = async (productoId: number) => {
                       <option value="">Seleccionar categoría...</option>
                       {flatCategorias.map(cat => (
                         <option key={cat.id} value={cat.id}>
-                          {cat.nombre}
+                          {cat.displayName}
                         </option>
                       ))}
                     </select>
@@ -482,40 +492,89 @@ const loadProductoAtributos = async (productoId: number) => {
                     <p className="text-xs">Puede crear atributos en la sección de Gestión</p>
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-64 overflow-y-auto">
-                        {atributos.map(atributo => (
-                          <div key={atributo.id} className="bg-gray-50 p-3 rounded-lg">
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                              {atributo.nombre}
-                            </label>
-                            
-                            {atributo.tipo === 'select' && atributo.valores && atributo.valores.length > 0 ? (
-                              <select
-                                value={getAtributoValue(atributo.id)}
-                                onChange={(e) => handleAtributoChange(atributo.id, e.target.value)}
-                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
-                                disabled={loading}
-                              >
-                                <option value="">Seleccionar...</option>
-                                {atributo.valores.map((valor, idx) => (
-                                  <option key={idx} value={valor}>
-                                    {valor}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <input
-                                type="text"
-                                value={getAtributoValue(atributo.id)}
-                                onChange={(e) => handleAtributoChange(atributo.id, e.target.value)}
-                                className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
-                                placeholder="Valor del atributo"
-                                disabled={loading}
-                              />
-                            )}
-                          </div>
-                        ))}
-                  </div>
+                  <>
+                    {/* Selector para agregar atributos */}
+                    {atributosDisponibles.length > 0 && (
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Agregar atributo
+                        </label>
+                        <select
+                          value=""
+                          onChange={(e) => handleAgregarAtributo(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          disabled={loading}
+                        >
+                          <option value="">Seleccionar atributo...</option>
+                          {atributosDisponibles.map(attr => (
+                            <option key={attr.id} value={attr.id}>
+                              {attr.nombre} ({attr.tipo === 'select' ? 'Selección' : 'Texto'})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Lista de atributos seleccionados */}
+                    {atributosSeleccionados.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <p className="text-sm">No hay atributos agregados</p>
+                        <p className="text-xs">Seleccione un atributo del menú superior para agregarlo</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {atributosSeleccionados.map(atributoId => {
+                          const atributo = atributos.find(a => a.id === atributoId);
+                          if (!atributo) return null;
+
+                          return (
+                            <div key={atributo.id} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-medium text-gray-700">
+                                  {atributo.nombre}
+                                </label>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuitarAtributo(atributo.id)}
+                                  className="text-red-600 hover:text-red-800 text-sm"
+                                  disabled={loading}
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
+                              </div>
+                              
+                              {atributo.tipo === 'select' && atributo.valores && atributo.valores.length > 0 ? (
+                                <select
+                                  value={getAtributoValue(atributo.id)}
+                                  onChange={(e) => handleAtributoChange(atributo.id, e.target.value)}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                  disabled={loading}
+                                >
+                                  <option value="">Seleccionar...</option>
+                                  {atributo.valores.map((valor, idx) => (
+                                    <option key={idx} value={valor}>
+                                      {valor}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={getAtributoValue(atributo.id)}
+                                  onChange={(e) => handleAtributoChange(atributo.id, e.target.value)}
+                                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-orange-500"
+                                  placeholder="Valor del atributo"
+                                  disabled={loading}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
