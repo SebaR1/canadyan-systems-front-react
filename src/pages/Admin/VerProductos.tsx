@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
+import ProductoModal from './ProductoModal';
 import { Producto } from '../../services/types';
 
 interface ProductosResponse {
@@ -22,25 +23,28 @@ const VerProductos: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeSearchTerm, setActiveSearchTerm] = useState(''); // ✅ Término actualmente aplicado
+  const [activeSearchTerm, setActiveSearchTerm] = useState('');
   const [totalPages, setTotalPages] = useState(0);
   const [totalProductos, setTotalProductos] = useState(0);
   const [changingStatus, setChangingStatus] = useState<number | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
+
+  // Estados del modal
+  const [showProductoModal, setShowProductoModal] = useState(false);
+  const [editingProducto, setEditingProducto] = useState<Producto | null>(null);
 
   const productsPerPage = 10;
 
   // Cargar productos - cuando cambie la página o el filtro activo
   useEffect(() => {
     loadProductos();
-  }, [currentPage, activeSearchTerm]); // ✅ Usa activeSearchTerm, no searchTerm
+  }, [currentPage, activeSearchTerm]);
 
   const loadProductos = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Usar el término de búsqueda activo, no el que está siendo escrito
       const searchParam = activeSearchTerm.trim() ? `&search=${encodeURIComponent(activeSearchTerm)}` : '';
       
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=list-admin&page=${currentPage}&limit=${productsPerPage}${searchParam}`, {
@@ -53,11 +57,6 @@ const VerProductos: React.FC = () => {
       });
       
       const result = await response.json();
-      
-      // ✅ Debug: Log para ver qué está recibiendo el backend
-      console.log('🔍 Búsqueda productos enviada:', activeSearchTerm);
-      console.log('📡 URL:', response.url);
-      console.log('📥 Respuesta:', result);
 
       if (result.success && result.data) {
         setProductos(result.data.productos || []);
@@ -83,12 +82,12 @@ const VerProductos: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
-    setActiveSearchTerm(searchTerm); // ✅ Activar el filtro
+    setActiveSearchTerm(searchTerm);
   };
 
   const handleClearSearch = () => {
     setSearchTerm('');
-    setActiveSearchTerm(''); // ✅ Limpiar el filtro activo
+    setActiveSearchTerm('');
     setCurrentPage(1);
   };
 
@@ -125,6 +124,90 @@ const VerProductos: React.FC = () => {
     } finally {
       setChangingStatus(null);
     }
+  };
+
+  // Manejar creación/edición de producto
+  const handleProductoSubmit = async (data: any) => {
+    try {
+      const { producto, atributos } = data;
+      
+      // Determinar si es crear o actualizar
+      const isEditing = editingProducto !== null;
+      const url = isEditing 
+        ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=update&id=${editingProducto.id}`
+        : `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=create`;
+      
+      const method = isEditing ? 'PUT' : 'POST';
+      
+      // Crear producto primero
+      const productoResponse = await fetch(url, {
+        method,
+        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(producto)
+      });
+      
+      const productoResult = await productoResponse.json();
+      
+      if (!productoResult.success) {
+        throw new Error(productoResult.error || 'Error al guardar producto');
+      }
+
+      // Obtener ID del producto (para crear) o usar el existente (para editar)
+      const productoId = isEditing ? editingProducto.id : productoResult.data.producto.id;
+
+      // Asignar atributos si hay alguno
+      if (atributos.length > 0) {
+        const atributosResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/atributos.php?action=assign-product`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            producto_id: productoId,
+            atributos: atributos
+          })
+        });
+        
+        const atributosResult = await atributosResponse.json();
+        
+        if (!atributosResult.success) {
+          console.warn('Error al asignar atributos:', atributosResult.error);
+        }
+      }
+
+      // Recargar productos y cerrar modal
+      await loadProductos();
+      setShowProductoModal(false);
+      setEditingProducto(null);
+      
+    } catch (error: any) {
+      console.error('Error guardando producto:', error);
+      throw error; // Re-lanzar para que el modal lo maneje
+    }
+  };
+
+  // Manejar apertura del modal para crear
+  const handleCreateProducto = () => {
+    setEditingProducto(null);
+    setShowProductoModal(true);
+  };
+
+  // Manejar apertura del modal para editar
+  const handleEditProducto = (producto: Producto) => {
+    setEditingProducto(producto);
+    setShowProductoModal(true);
+  };
+
+  // Cerrar modal
+  const handleCloseModal = () => {
+    setShowProductoModal(false);
+    setEditingProducto(null);
   };
 
   const formatDate = (dateString: string) => {
@@ -206,10 +289,25 @@ const VerProductos: React.FC = () => {
           
           {/* Header de la página */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Gestión de Productos</h1>
-            <p className="mt-2 text-sm text-gray-600">
-              Administra todos los productos del catálogo
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Gestión de Productos</h1>
+                <p className="mt-2 text-sm text-gray-600">
+                  Administra todos los productos del catálogo
+                </p>
+              </div>
+              
+              {/* Botón Agregar Producto */}
+              <button
+                onClick={handleCreateProducto}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Agregar Producto
+              </button>
+            </div>
           </div>
 
           {/* Barra de búsqueda y estadísticas */}
@@ -285,6 +383,14 @@ const VerProductos: React.FC = () => {
             ) : productos.length === 0 ? (
               <div className="p-8 text-center">
                 <p className="text-gray-500">No se encontraron productos</p>
+                {!activeSearchTerm && (
+                  <button
+                    onClick={handleCreateProducto}
+                    className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700"
+                  >
+                    Crear primer producto
+                  </button>
+                )}
               </div>
             ) : (
               <>
@@ -372,6 +478,17 @@ const VerProductos: React.FC = () => {
                             {formatDate(producto.created_at)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                            {/* Botón Editar */}
+                            <button
+                              onClick={() => handleEditProducto(producto)}
+                              className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200"
+                            >
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              Editar
+                            </button>
+
                             {/* Botón cambiar estado */}
                             <button
                               onClick={() => toggleProductStatus(producto.id, producto.activo)}
@@ -395,7 +512,7 @@ const VerProductos: React.FC = () => {
                             {/* Botón ver detalle */}
                             <Link
                               to={`/producto/${producto.id}`}
-                              className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200"
+                              className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
                             >
                               Ver
                             </Link>
@@ -479,6 +596,15 @@ const VerProductos: React.FC = () => {
           </div>
         </div>
       </main>
+      
+      {/* Modal de Producto */}
+      <ProductoModal
+        isOpen={showProductoModal}
+        onClose={handleCloseModal}
+        onSubmit={handleProductoSubmit}
+        editing={editingProducto}
+      />
+      
       <Footer />
     </>
   );

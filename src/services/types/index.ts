@@ -50,6 +50,7 @@ export interface Producto {
   activo: boolean;          // ✅ Los productos SÍ tienen campo activo
   created_at: string;       // ✅ Cambiado de fecha_creacion a created_at
   updated_at?: string;      // ✅ Agregado para consistencia
+  sku?: string;            // ✅ Agregado campo SKU que es común en productos
 }
 
 export interface ProductoCreacion {
