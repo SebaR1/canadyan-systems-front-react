@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
+import apiManager from '../../services/ApiIndex';
 
 const Contacto: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -13,6 +14,38 @@ const Contacto: React.FC = () => {
     razonSocialEmpresa: '',
     mensaje: ''
   });
+
+  // Cargar datos del usuario si está logueado
+  useEffect(() => {
+    const cargarDatosUsuario = async () => {
+      try {
+        const response = await apiManager.usuarios.obtenerPerfil();
+        
+        if (response.success && response.data) {
+          // Casting para acceder a usuario
+          const usuario = (response.data as any).usuario;
+          
+          // Pre-rellenar el formulario con los datos del usuario
+          setFormData(prev => ({
+            ...prev,
+            nombreApellido: usuario.nombre && usuario.apellido 
+              ? `${usuario.nombre} ${usuario.apellido}` 
+              : prev.nombreApellido,
+            cuit: usuario.cuit || prev.cuit,
+            correoElectronico: usuario.correo_electronico || prev.correoElectronico,
+            celular: usuario.celular || prev.celular,
+            localidad: usuario.ciudad || prev.localidad,
+            razonSocialEmpresa: usuario.razon_social_empresa || prev.razonSocialEmpresa,
+          }));
+        }
+      } catch (error) {
+        // Si hay error (usuario no logueado), simplemente no pre-rellenamos
+        console.log('Usuario no logueado, formulario vacío');
+      }
+    };
+
+    cargarDatosUsuario();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
