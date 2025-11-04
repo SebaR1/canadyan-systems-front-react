@@ -119,10 +119,12 @@ export interface Contacto {
 }
 
 export interface ContactoEnvio {
-  nombre: string;
-  email: string;
-  telefono?: string;
-  asunto: string;
+  nombreApellido: string;
+  cuit: string;
+  correoElectronico: string;
+  celular?: string;
+  localidad?: string;
+  razonSocialEmpresa: string;
   mensaje: string;
 }
 

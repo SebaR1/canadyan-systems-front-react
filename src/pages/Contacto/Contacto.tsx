@@ -77,7 +77,7 @@ const Contacto: React.FC = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validar que tenga al menos celular o email
@@ -86,8 +86,36 @@ const Contacto: React.FC = () => {
       return;
     }
     
-    console.log('Formulario enviado:', formData);
-    // Aquí puedes agregar la lógica para enviar el formulario
+    try {
+      const response = await apiManager.contacto.enviar({
+        nombreApellido: formData.nombreApellido,
+        cuit: formData.cuit,
+        correoElectronico: formData.correoElectronico,
+        celular: formData.celular,
+        localidad: formData.localidad,
+        razonSocialEmpresa: formData.razonSocialEmpresa,
+        mensaje: formData.mensaje
+      });
+      
+      if (response.success) {
+        alert('¡Mensaje enviado exitosamente! Te contactaremos pronto.');
+        // Limpiar formulario
+        setFormData({
+          nombreApellido: '',
+          cuit: '',
+          correoElectronico: '',
+          celular: '',
+          localidad: '',
+          razonSocialEmpresa: '',
+          mensaje: ''
+        });
+      } else {
+        alert('Error: ' + (response.error || 'No se pudo enviar el mensaje'));
+      }
+    } catch (error) {
+      console.error('Error enviando mensaje:', error);
+      alert('Error de conexión al enviar el mensaje');
+    }
   };
 
   const handleCall = () => {
