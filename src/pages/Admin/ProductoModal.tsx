@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Producto, Categoria, Atributo, ProductoAtributo } from '../../services/types';
+import ImageUploadManager from '../../components/ImageUploadManager/ImageUploadManager';
+import { ProductoImagen } from '../../services/modules/ProductoImagenService';
+import apiManager from '../../services/ApiIndex';
+
 
 interface ProductoModalProps {
   isOpen: boolean;
@@ -52,6 +56,9 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
   
   const [errors, setErrors] = useState<{[key: string]: string}>({});
 
+  const [imagenes, setImagenes] = useState<ProductoImagen[]>([]);
+  const [loadingImagenes, setLoadingImagenes] = useState(false);
+
   // Efecto para cargar datos cuando se abre el modal
   useEffect(() => {
     if (isOpen) {
@@ -60,6 +67,7 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
       
       if (editing) {
         loadProductoAtributos(editing.id);
+        loadImagenes(editing.id);  // ← AGREGAR ESTA LÍNEA
         setFormData({
           nombre: editing.nombre || '',
           descripcion: editing.descripcion || '',
@@ -86,8 +94,9 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
       activo: true
     });
     setAtributosValues([]);
-    setAtributosSeleccionados([]); // ← NUEVO
+    setAtributosSeleccionados([]);
     setProductoAtributos([]);
+    setImagenes([]);  // ← AGREGAR ESTA LÍNEA
     setErrors({});
   };
 
@@ -172,6 +181,87 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
       console.error('Error cargando atributos del producto:', error);
     } finally {
       setLoadingProductoAtributos(false);
+    }
+  };
+
+  // Cargar imágenes del producto
+  const loadImagenes = async (productoId: number) => {
+    try {
+      setLoadingImagenes(true);
+      const response = await apiManager.productoImagenes.listarImagenes(productoId);
+      
+      if (response.success && response.data) {
+        setImagenes(response.data.imagenes || []);
+      }
+    } catch (error) {
+      console.error('Error cargando imágenes:', error);
+    } finally {
+      setLoadingImagenes(false);
+    }
+  };
+
+  // Subir imágenes
+  const handleUploadImagenes = async (archivos: File[]) => {
+    if (!editing || !editing.id) {
+      alert('Guarda primero el producto antes de subir imágenes');
+      return;
+    }
+
+    try {
+      const response = await apiManager.productoImagenes.subirImagenes(
+        editing.id,
+        archivos,
+        imagenes.length === 0 ? 'principal' : 'galeria'
+      );
+
+      if (response.success && response.data) {
+        await loadImagenes(editing.id);
+        
+        if (response.data.errores && response.data.errores.length > 0) {
+          alert(`Algunas imágenes tuvieron errores:\n${response.data.errores.join('\n')}`);
+        }
+      } else {
+        alert('Error al subir imágenes');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error al subir imágenes');
+    }
+  };
+
+  // Eliminar imagen
+  const handleDeleteImagen = async (imagenId: number) => {
+    if (!editing || !editing.id) return;
+
+    try {
+      const response = await apiManager.productoImagenes.eliminarImagen(imagenId);
+      
+      if (response.success) {
+        await loadImagenes(editing.id);
+      } else {
+        alert('Error al eliminar imagen');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error al eliminar imagen');
+    }
+  };
+
+  // Cambiar imagen principal
+  const handleSetPrincipal = async (imagenId: number) => {
+    if (!editing || !editing.id) return;
+
+    try {
+      const response = await apiManager.productoImagenes.cambiarPrincipal(imagenId);
+      
+      if (response.success) {
+        await loadImagenes(editing.id);
+      } else {
+        alert('Error al cambiar imagen principal');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error al cambiar imagen principal');
     }
   };
 
@@ -577,6 +667,29 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
                   </>
                 )}
               </div>
+            </div>
+
+            {/* Sección de Imágenes */}
+            <div className="border-t pt-6">
+              <h4 className="font-medium text-gray-900 mb-4">Imágenes del Producto</h4>
+              
+              {editing && editing.id ? (
+                <ImageUploadManager
+                  productoId={editing.id}
+                  imagenes={imagenes}
+                  onImagenesChange={setImagenes}
+                  onUpload={handleUploadImagenes}
+                  onDelete={handleDeleteImagen}
+                  onSetPrincipal={handleSetPrincipal}
+                  maxImagenes={10}
+                  disabled={loading || loadingImagenes}
+                />
+              ) : (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 text-sm text-yellow-800">
+                  <p className="font-medium mb-1">⚠️ Guarda el producto primero</p>
+                  <p>Las imágenes se pueden agregar después de crear el producto</p>
+                </div>
+              )}
             </div>
 
             {/* Botones */}
