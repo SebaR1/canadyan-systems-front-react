@@ -22,6 +22,11 @@ const ProductDetail: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'caracteristicas' | 'descargas' | 'videos'>('caracteristicas');
 
+  // Estados para las imágenes
+  const [imagenes, setImagenes] = useState<any[]>([]);
+  const [imagenActual, setImagenActual] = useState(0);
+  const [loadingImagenes, setLoadingImagenes] = useState(false);
+
   useEffect(() => {
     if (!id || !Number.isInteger(Number(id))) {
       setError('ID de producto inválido');
@@ -32,6 +37,32 @@ const ProductDetail: React.FC = () => {
     cargarProducto();
   }, [id]);
 
+  // Cuando cargamos las imágenes, transformar las URLs
+  const cargarImagenes = async (productoId: number) => {
+    try {
+      setLoadingImagenes(true);
+      const response = await apiManager.productoImagenes.listarImagenes(productoId);
+      
+      if (response.success && response.data) {
+        const imgs = response.data.imagenes || [];
+        
+        // ✅ AGREGAR: Transformar URLs para que sean absolutas
+        const imagenesConUrlCompleta = imgs.map((img: any) => ({
+          ...img,
+          url: `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${img.url}`
+        }));
+        
+        setImagenes(imagenesConUrlCompleta);
+        setImagenActual(0);
+      }
+    } catch (error) {
+      console.error('Error cargando imágenes:', error);
+      setImagenes([]);
+    } finally {
+      setLoadingImagenes(false);
+    }
+  };
+
   const cargarProducto = async () => {
     try {
       setLoading(true);
@@ -41,6 +72,10 @@ const ProductDetail: React.FC = () => {
       
       if (response.success && response.data) {
         setProducto((response.data as any).producto);
+
+        if ((response.data as any).producto.id) {
+          await cargarImagenes((response.data as any).producto.id);
+        }
         
         // Si hay categoría, obtener información adicional
         if ((response.data as any).producto.categoria_id) {
@@ -212,16 +247,50 @@ const ProductDetail: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-sm p-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               
-              {/* Imagen del producto */}
-              <div className="flex justify-center">
-                <div className="w-full max-w-md bg-gray-50 rounded-2xl border-2 border-gray-300 p-6 flex items-center justify-center min-h-80">
-                  <img
-                    src={producto.imagen_url || `https://picsum.photos/400/300?random=${producto.id}`}
-                    alt={producto.nombre}
-                    className="max-w-full max-h-full object-contain"
-                  />
+          {/* Imagen del producto - MODIFICADO */}
+          <div className="flex flex-col justify-center">
+            {/* Imagen Principal */}
+            <div className="w-full max-w-md bg-gray-50 rounded-2xl border-2 border-gray-300 p-6 flex items-center justify-center min-h-80">
+              {loadingImagenes ? (
+                <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+              ) : (
+                <img
+                  src={
+                    imagenes.length > 0 
+                      ? imagenes[imagenActual]?.url 
+                      : producto.imagen_url || `https://picsum.photos/400/300?random=${producto.id}`
+                  }
+                  alt={producto.nombre}
+                  className="max-w-full max-h-full object-contain"
+                />
+              )}
+            </div>
+
+            {/* Galería de Thumbnails - NUEVO (solo si hay más de 1 imagen) */}
+            {imagenes.length > 1 && (
+              <div className="mt-4 w-full max-w-md">
+                <div className="flex gap-2 overflow-x-auto pb-2">
+                  {imagenes.map((img, index) => (
+                    <button
+                      key={img.id}
+                      onClick={() => setImagenActual(index)}
+                      className={`flex-shrink-0 w-20 h-20 rounded-lg border-2 overflow-hidden transition-all ${
+                        index === imagenActual 
+                          ? 'border-orange-500 ring-2 ring-orange-200' 
+                          : 'border-gray-300 hover:border-orange-300'
+                      }`}
+                    >
+                      <img
+                        src={img.url}
+                        alt={`${producto.nombre} - ${index + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
                 </div>
               </div>
+            )}
+          </div>
 
               {/* Información del producto */}
               <div className="space-y-6">
