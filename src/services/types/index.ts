@@ -47,10 +47,11 @@ export interface Producto {
   categoria_nombre?: string;
   imagen_url?: string;
   stock: number;
-  activo: boolean;          // ✅ Los productos SÍ tienen campo activo
-  created_at: string;       // ✅ Cambiado de fecha_creacion a created_at
-  updated_at?: string;      // ✅ Agregado para consistencia
-  sku?: string;            // ✅ Agregado campo SKU que es común en productos
+  activo: boolean;
+  created_at: string;
+  updated_at?: string;
+  sku?: string;
+  imagen_principal_url?: string; 
 }
 
 export interface ProductoCreacion {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
@@ -37,6 +37,14 @@ const Catalogo: React.FC = () => {
   // ✅ NUEVO: Estado para detectar modo búsqueda
   const terminoBusqueda = searchParams.get('busqueda');
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [totalProductos, setTotalProductos] = useState(0);
+  const PRODUCTOS_POR_PAGINA = 20;
+
+  const observerTarget = useRef<HTMLDivElement>(null);
+
   // FUNCIÓN HELPER PARA FORMATEAR PRECIO
   const formatearPrecio = (precio: any): string => {
     if (!precio || precio === '' || precio === null || precio === undefined) {
@@ -66,6 +74,12 @@ const Catalogo: React.FC = () => {
       return null;
     }
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    setHasMore(true);
+    setTotalProductos(0);
+  }, [categoriaSlug, subcategoriaSlug, terminoBusqueda]);
 
   // NUEVA FUNCIÓN: Manejar cambio de subcategoría (agregar después de obtenerCategoriaPorSlug)
   const handleSubcategoriaChange = async (subcategoriaId: string) => {
@@ -111,6 +125,136 @@ const Catalogo: React.FC = () => {
     // Limpiar filtros actuales
     clearFilters();
   };
+
+  
+
+    // Función para obtener filtros activos
+  const getFiltrosActivos = useCallback((): Record<string, string[]> => {
+    const filtrosActivos: Record<string, string[]> = {};
+    
+    Object.entries(filters).forEach(([atributoId, valores]) => {
+      const valoresActivos = Object.entries(valores)
+        .filter(([_, activo]) => activo)
+        .map(([valor, _]) => valor);
+      
+      if (valoresActivos.length > 0) {
+        filtrosActivos[atributoId] = valoresActivos;
+      }
+    });
+    
+    return filtrosActivos;
+  }, [filters]);
+
+
+      const cargarMasProductos = useCallback(async () => {
+      if (loadingMore || !hasMore) return;
+      
+      setLoadingMore(true);
+      
+      try {
+        let response: any;
+        const nextPage = currentPage + 1;
+        
+        // CASO 1: Búsqueda
+        if (terminoBusqueda) {
+          response = await apiManager.productos.buscar({
+            q: terminoBusqueda,
+            page: nextPage,
+            limit: PRODUCTOS_POR_PAGINA
+          });
+          
+          if (response.success && response.data) {
+            const nuevosProductos = response.data.productos || [];
+            setProductos(prev => [...prev, ...nuevosProductos]);
+            setCurrentPage(nextPage);
+            setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
+          }
+        }
+        // CASO 2: Con filtros
+        else if (Object.keys(getFiltrosActivos()).length > 0) {
+          const filtrosActivos = getFiltrosActivos();
+          
+          response = await apiManager.atributos.filtrarProductosSimple(
+            filtrosActivos,
+            nextPage,
+            PRODUCTOS_POR_PAGINA,
+            categoriaActual?.id
+          );
+          
+          if (response.success && response.data) {
+            const nuevosProductos = response.data.productos || [];
+            setProductos(prev => [...prev, ...nuevosProductos]);
+            setCurrentPage(nextPage);
+            setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
+          }
+        }
+
+          // CASO 3: Por categoría
+          else if (categoriaActual) {
+            const offset = (nextPage - 1) * PRODUCTOS_POR_PAGINA;
+            response = await apiManager.productos.obtenerPorCategoria(
+              categoriaActual.id,
+              { offset: offset, limit: PRODUCTOS_POR_PAGINA }
+            );
+          
+          if (response.success && response.data) {
+            const nuevosProductos = response.data.productos || [];
+            setProductos(prev => [...prev, ...nuevosProductos]);
+            setCurrentPage(nextPage);
+            setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
+          }
+        }
+          // CASO 4: Todos los productos
+          else {
+            const offset = (nextPage - 1) * PRODUCTOS_POR_PAGINA;
+            response = await apiManager.productos.listar({
+              offset: offset,
+              limit: PRODUCTOS_POR_PAGINA
+            });
+          
+          if (response.success && response.data) {
+            const nuevosProductos = response.data.productos || [];
+            setProductos(prev => [...prev, ...nuevosProductos]);
+            setCurrentPage(nextPage);
+            setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
+          }
+        }
+        
+      } catch (error) {
+        console.error('Error cargando más productos:', error);
+      } finally {
+        setLoadingMore(false);
+      }
+    }, [currentPage, loadingMore, hasMore, terminoBusqueda, categoriaActual, getFiltrosActivos]);
+
+
+        useEffect(() => {
+      if (!hasMore || loadingMore || loading) return;
+      
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (entries[0].isIntersecting) {
+            console.log('🔄 Trigger: Cargando más productos...');
+            cargarMasProductos();
+          }
+        },
+        {
+          threshold: 0.1,
+          rootMargin: '100px'
+        }
+      );
+
+      const currentTarget = observerTarget.current;
+      if (currentTarget) {
+        observer.observe(currentTarget);
+      }
+
+      return () => {
+        if (currentTarget) {
+          observer.unobserve(currentTarget);
+        }
+      };
+    }, [hasMore, loadingMore, loading, cargarMasProductos]);
 
   // ✅ MODIFICADO: useEffect principal con detección de búsqueda
   useEffect(() => {
@@ -220,7 +364,10 @@ const Catalogo: React.FC = () => {
                   }
                 } else {
                   // Si no hay subcategorías, cargar productos de la categoría padre
-                  const productosResponse = await apiManager.productos.obtenerPorCategoria(categoria.id);
+                  const productosResponse = await apiManager.productos.obtenerPorCategoria(
+                    categoria.id,
+                    { offset: 0, limit: PRODUCTOS_POR_PAGINA }
+                  );
                   if (productosResponse.success && productosResponse.data) {
                     productos = productosResponse.data.productos || [];
                   }
@@ -240,7 +387,10 @@ const Catalogo: React.FC = () => {
               setSubcategoriaSeleccionada(categoria.id);
               
               // Cargar productos de esta subcategoría específica
-              const productosResponse = await apiManager.productos.obtenerPorCategoria(categoria.id);
+              const productosResponse = await apiManager.productos.obtenerPorCategoria(
+                categoria.id,
+                { offset: 0, limit: PRODUCTOS_POR_PAGINA }
+              );
               if (productosResponse.success && productosResponse.data) {
                 productos = productosResponse.data.productos || [];
               }
@@ -260,6 +410,10 @@ const Catalogo: React.FC = () => {
         }
 
         setProductos(productos);
+        setCurrentPage(1);
+        setHasMore(productos.length >= PRODUCTOS_POR_PAGINA);
+        setTotalProductos(productos.length);
+
         console.log('🔍 Productos encontrados para categoría:', productos.length);
 
         
@@ -290,6 +444,7 @@ const Catalogo: React.FC = () => {
     };
 
     loadAllData();
+
   }, [categoriaSlug, subcategoriaSlug, searchParams, terminoBusqueda]); // ← Agregada dependencia
 
   const recargarProductosOriginales = useCallback(async () => {
@@ -328,6 +483,9 @@ const Catalogo: React.FC = () => {
     }
     
     setProductos(productos);
+    setCurrentPage(1);
+    setHasMore(productos.length >= PRODUCTOS_POR_PAGINA);
+    setTotalProductos(productos.length);
   }, [searchParams, categoriaActual, subcategorias]);
 
   // ✅ MODIFICADO: Solo aplicar filtros si NO estamos en modo búsqueda
@@ -402,22 +560,6 @@ const Catalogo: React.FC = () => {
     }
   }, [filters, atributos.length, categoriaActual, terminoBusqueda]); // ← Agregada dependencia
   
-  // Función para obtener filtros activos
-  const getFiltrosActivos = useCallback((): Record<string, string[]> => {
-    const filtrosActivos: Record<string, string[]> = {};
-    
-    Object.entries(filters).forEach(([atributoId, valores]) => {
-      const valoresActivos = Object.entries(valores)
-        .filter(([_, activo]) => activo)
-        .map(([valor, _]) => valor);
-      
-      if (valoresActivos.length > 0) {
-        filtrosActivos[atributoId] = valoresActivos;
-      }
-    });
-    
-    return filtrosActivos;
-  }, [filters]);
 
   const handleFilterChange = (atributoId: string, valor: string) => {
     setFilters(prev => ({
@@ -702,13 +844,18 @@ const Catalogo: React.FC = () => {
                     </>
                   )}
                 </div>
-              ) : (
+                ) : (
+                  <>
                     <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-3 gap-6">
                       {productos.map((producto) => (
                         <ProductCard
                           key={producto.id}
                           id={producto.id}
-                          image={producto.imagen_url || `https://picsum.photos/300/200?random=${producto.id}`}
+                          image={
+                            producto.imagen_principal_url 
+                              ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${producto.imagen_principal_url}`
+                              : undefined
+                          }
                           title={producto.nombre}
                           description={producto.descripcion || ''}
                           price={formatearPrecio(producto.precio)}
@@ -716,7 +863,27 @@ const Catalogo: React.FC = () => {
                         />
                       ))}
                     </div>
-              )}
+                    
+                    {/* ✅ ELEMENTO OBSERVADOR para infinite scroll */}
+                    {hasMore && !loading && (
+                      <div ref={observerTarget} className="flex justify-center py-8">
+                        {loadingMore && (
+                          <div className="flex flex-col items-center">
+                            <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full mb-2"></div>
+                            <p className="text-gray-600 text-sm">Cargando más productos...</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ✅ MENSAJE cuando no hay más productos */}
+                    {!hasMore && productos.length > 0 && !loading && (
+                      <div className="text-center py-8 text-gray-500">
+                        <p>No hay más productos para mostrar</p>
+                      </div>
+                    )}
+                  </>
+                )}
             </div>
           </div>
         </div>
