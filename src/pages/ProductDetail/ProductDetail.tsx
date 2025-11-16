@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
+import NoImagePlaceholder from '../../components/NoImagePlaceholder';
 import apiManager from '../../services/ApiIndex';
 import { Producto } from '../../services/types';
 
@@ -247,26 +248,28 @@ const ProductDetail: React.FC = () => {
           <div className="bg-white rounded-2xl shadow-sm p-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               
-          {/* Imagen del producto - MODIFICADO */}
+          {/* Imagen del producto - MODIFICADO CON PLACEHOLDER */}
           <div className="flex flex-col justify-center">
-            {/* Imagen Principal */}
-            <div className="w-full max-w-md bg-gray-50 rounded-2xl border-2 border-gray-300 p-6 flex items-center justify-center min-h-80">
+            {/* Imagen Principal o Placeholder */}
+            <div className="w-full max-w-md">
               {loadingImagenes ? (
-                <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+                <div className="bg-gray-50 rounded-2xl border-2 border-gray-300 p-6 flex items-center justify-center min-h-80">
+                  <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+                </div>
+              ) : imagenes.length === 0 ? (
+                <NoImagePlaceholder />
               ) : (
-                <img
-                  src={
-                    imagenes.length > 0 
-                      ? imagenes[imagenActual]?.url 
-                      : producto.imagen_url || `https://picsum.photos/400/300?random=${producto.id}`
-                  }
-                  alt={producto.nombre}
-                  className="max-w-full max-h-full object-contain"
-                />
+                <div className="bg-gray-50 rounded-2xl border-2 border-gray-300 p-6 flex items-center justify-center min-h-80">
+                  <img
+                    src={imagenes[imagenActual]?.url}
+                    alt={producto.nombre}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                </div>
               )}
             </div>
 
-            {/* Galería de Thumbnails - NUEVO (solo si hay más de 1 imagen) */}
+            {/* Galería de Thumbnails - Solo si hay más de 1 imagen */}
             {imagenes.length > 1 && (
               <div className="mt-4 w-full max-w-md">
                 <div className="flex gap-2 overflow-x-auto pb-2">
