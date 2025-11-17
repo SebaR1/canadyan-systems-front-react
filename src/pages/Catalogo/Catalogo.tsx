@@ -43,6 +43,8 @@ const Catalogo: React.FC = () => {
   const [totalProductos, setTotalProductos] = useState(0);
   const PRODUCTOS_POR_PAGINA = 20;
 
+  const [primeraVez, setPrimeraVez] = useState(true);
+
   const observerTarget = useRef<HTMLDivElement>(null);
 
   // FUNCIÓN HELPER PARA FORMATEAR PRECIO
@@ -146,128 +148,127 @@ const Catalogo: React.FC = () => {
   }, [filters]);
 
 
-      const cargarMasProductos = useCallback(async () => {
-      if (loadingMore || !hasMore) return;
-      
-      setLoadingMore(true);
-      
-      try {
-        let response: any;
-        const nextPage = currentPage + 1;
-        
-        // CASO 1: Búsqueda
-        if (terminoBusqueda) {
-          response = await apiManager.productos.buscar({
-            q: terminoBusqueda,
-            page: nextPage,
-            limit: PRODUCTOS_POR_PAGINA
-          });
-          
-          if (response.success && response.data) {
-            const nuevosProductos = response.data.productos || [];
-            setProductos(prev => [...prev, ...nuevosProductos]);
-            setCurrentPage(nextPage);
-            setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
-          }
-        }
-        // CASO 2: Con filtros
-        else if (Object.keys(getFiltrosActivos()).length > 0) {
-          const filtrosActivos = getFiltrosActivos();
-          
-          response = await apiManager.atributos.filtrarProductosSimple(
-            filtrosActivos,
-            nextPage,
-            PRODUCTOS_POR_PAGINA,
-            categoriaActual?.id
-          );
-          
-          if (response.success && response.data) {
-            const nuevosProductos = response.data.productos || [];
-            setProductos(prev => [...prev, ...nuevosProductos]);
-            setCurrentPage(nextPage);
-            setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
-          }
-        }
+  const cargarMasProductos = useCallback(async () => {
+    if (loadingMore || !hasMore) return;
 
-          // CASO 3: Por categoría
-          else if (categoriaActual) {
-            const offset = (nextPage - 1) * PRODUCTOS_POR_PAGINA;
-            response = await apiManager.productos.obtenerPorCategoria(
-              categoriaActual.id,
-              { offset: offset, limit: PRODUCTOS_POR_PAGINA }
-            );
-          
-          if (response.success && response.data) {
-            const nuevosProductos = response.data.productos || [];
-            setProductos(prev => [...prev, ...nuevosProductos]);
-            setCurrentPage(nextPage);
-            setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
-          }
-        }
-          // CASO 4: Todos los productos
-          else {
-            const offset = (nextPage - 1) * PRODUCTOS_POR_PAGINA;
-            response = await apiManager.productos.listar({
-              offset: offset,
-              limit: PRODUCTOS_POR_PAGINA
-            });
-          
-          if (response.success && response.data) {
-            const nuevosProductos = response.data.productos || [];
-            setProductos(prev => [...prev, ...nuevosProductos]);
-            setCurrentPage(nextPage);
-            setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
-          }
-        }
+    setLoadingMore(true);
+    
+    try {
+      let response: any;
+      const nextPage = currentPage + 1;
+            
+      // CASO 1: Búsqueda
+      if (terminoBusqueda) {
+        response = await apiManager.productos.buscar({
+          q: terminoBusqueda,
+          page: nextPage,
+          limit: PRODUCTOS_POR_PAGINA
+        });
         
-      } catch (error) {
-        console.error('Error cargando más productos:', error);
-      } finally {
-        setLoadingMore(false);
+        if (response.success && response.data) {
+          const nuevosProductos = response.data.productos || [];
+          setProductos(prev => [...prev, ...nuevosProductos]);
+          setCurrentPage(nextPage);
+          setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
+        }
       }
-    }, [currentPage, loadingMore, hasMore, terminoBusqueda, categoriaActual, getFiltrosActivos]);
-
-
-        useEffect(() => {
-      if (!hasMore || loadingMore || loading) return;
-      
-      const observer = new IntersectionObserver(
-        (entries) => {
-          if (entries[0].isIntersecting) {
-            console.log('🔄 Trigger: Cargando más productos...');
-            cargarMasProductos();
-          }
-        },
-        {
-          threshold: 0.1,
-          rootMargin: '100px'
+      // CASO 2: Con filtros
+      else if (Object.keys(getFiltrosActivos()).length > 0) {
+        const filtrosActivos = getFiltrosActivos();
+        
+        response = await apiManager.atributos.filtrarProductosSimple(
+          filtrosActivos,
+          nextPage,
+          PRODUCTOS_POR_PAGINA,
+          categoriaActual?.id
+        );
+        
+        if (response.success && response.data) {
+          const nuevosProductos = response.data.productos || [];
+          setProductos(prev => [...prev, ...nuevosProductos]);
+          setCurrentPage(nextPage);
+          setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
         }
-      );
+      }
+      // CASO 3: Por categoría
+      else if (categoriaActual) {
+        const offset = (nextPage - 1) * PRODUCTOS_POR_PAGINA;
+        
+        response = await apiManager.productos.obtenerPorCategoria(
+          categoriaActual.id,
+          { offset: offset, limit: PRODUCTOS_POR_PAGINA }
+        );
+        
+        if (response.success && response.data) {
+          const nuevosProductos = response.data.productos || [];
+          setProductos(prev => [...prev, ...nuevosProductos]);
+          setCurrentPage(nextPage);
+          setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
+        }
+      }
+      // CASO 4: Todos los productos
+      else {
+        const offset = (nextPage - 1) * PRODUCTOS_POR_PAGINA;
+        
+        response = await apiManager.productos.listar({
+          offset: offset,
+          limit: PRODUCTOS_POR_PAGINA
+        });
+                
+        if (response.success && response.data) {
+          const nuevosProductos = response.data.productos || [];
+          setProductos(prev => [...prev, ...nuevosProductos]);
+          setCurrentPage(nextPage);
+          setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
+        }
+      }
+            
+    } catch (error) {
+      console.error('❌ Error cargando más productos:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [currentPage, loadingMore, hasMore, terminoBusqueda, categoriaActual, getFiltrosActivos]);
 
-      const currentTarget = observerTarget.current;
+  useEffect(() => {
+    if (!hasMore || loadingMore || loading) {
+      return;
+    }
+        
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          cargarMasProductos();
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '100px'
+      }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    } else {
+    }
+
+    return () => {
       if (currentTarget) {
-        observer.observe(currentTarget);
+        observer.unobserve(currentTarget);
       }
-
-      return () => {
-        if (currentTarget) {
-          observer.unobserve(currentTarget);
-        }
-      };
-    }, [hasMore, loadingMore, loading, cargarMasProductos]);
+    };
+  }, [hasMore, loadingMore, loading, cargarMasProductos]);
 
   // ✅ MODIFICADO: useEffect principal con detección de búsqueda
   useEffect(() => {
     const loadAllData = async () => {
-      console.log('🔵 CARGA ÚNICA - useEffect principal');
-      console.log('🔍 Término de búsqueda:', terminoBusqueda);
       setLoading(true);
       setError(null);
 
       try {
         // ✅ MODO BÚSQUEDA - Nueva lógica
         if (terminoBusqueda) {
-          console.log('🔎 MODO BÚSQUEDA ACTIVADO');
           
           // Limpiar estados de categoría y filtros
           setCategoriaActual(null);
@@ -287,18 +288,13 @@ const Catalogo: React.FC = () => {
             // El backend devuelve 'productos' directamente
             const productosEncontrados = (busquedaResponse.data as any).productos || [];
             setProductos(productosEncontrados);
-            console.log('🔍 Resultados de búsqueda:', productosEncontrados.length);
           } else {
             setProductos([]);
-            console.log('🔍 No se encontraron resultados');
           }
           
           setLoading(false);
           return; // ← IMPORTANTE: Salir aquí para no ejecutar lógica de categorías
         }
-
-        // ✅ MODO NORMAL - Tu lógica existente
-        console.log('📂 MODO CATEGORÍA NORMAL');
         
         // 1. Determinar categoría de la URL
         let categoriaId: string | null = null;
@@ -353,7 +349,7 @@ const Catalogo: React.FC = () => {
                 // Cargar productos de todas las subcategorías
                 if (subs.length > 0) {
                   const productosPromises = subs.map(sub => 
-                    apiManager.productos.obtenerPorCategoria(sub.id)
+                    apiManager.productos.obtenerPorCategoria(sub.id, { limit: 999 })
                   );
                   const productosResponses = await Promise.all(productosPromises);
                   
@@ -413,9 +409,6 @@ const Catalogo: React.FC = () => {
         setCurrentPage(1);
         setHasMore(productos.length >= PRODUCTOS_POR_PAGINA);
         setTotalProductos(productos.length);
-
-        console.log('🔍 Productos encontrados para categoría:', productos.length);
-
         
         // 3. Cargar filtros (solo en modo normal)
         const categoriaParaFiltros = categoriaId ? parseInt(categoriaId) : null;
@@ -439,6 +432,7 @@ const Catalogo: React.FC = () => {
         console.error('Error loading data:', error);
         setError('Error de conexión al cargar el catálogo');
       } finally {
+
         setLoading(false);
       }
     };
@@ -457,7 +451,7 @@ const Catalogo: React.FC = () => {
         if (subcategorias.length > 0) {
           // Cargar productos de todas las subcategorías
           const productosPromises = subcategorias.map(sub => 
-            apiManager.productos.obtenerPorCategoria(sub.id)
+            apiManager.productos.obtenerPorCategoria(sub.id, { limit: 999 })
           );
           const productosResponses = await Promise.all(productosPromises);
           
@@ -468,14 +462,20 @@ const Catalogo: React.FC = () => {
           }
         } else {
           // Sin subcategorías, cargar productos directos
-          const productosResponse = await apiManager.productos.obtenerPorCategoria(parseInt(categoriaId));
+          const productosResponse = await apiManager.productos.obtenerPorCategoria(
+            parseInt(categoriaId), 
+            { limit: 999 }
+          );
           if (productosResponse.success && productosResponse.data) {
             productos = productosResponse.data.productos || [];
           }
         }
       } else {
         // Es subcategoría
-        const productosResponse = await apiManager.productos.obtenerPorCategoria(parseInt(categoriaId));
+        const productosResponse = await apiManager.productos.obtenerPorCategoria(
+          parseInt(categoriaId), 
+          { limit: 999 }
+        );
         if (productosResponse.success && productosResponse.data) {
           productos = productosResponse.data.productos || [];
         }
@@ -495,10 +495,23 @@ const Catalogo: React.FC = () => {
       return;
     }
 
+    // ✅ No ejecutar durante la carga inicial
+    if (loading) {
+      return;
+    }
+
+    // ✅ Solo aplicar filtros si hay filtros ACTIVOS
+    const filtrosActivos = getFiltrosActivos();
+    const hayFiltrosActivos = Object.keys(filtrosActivos).length > 0;
+    
+    // ✅ NUEVO: Solo ejecutar si cambiaron los filtros (no en la primera carga)
+    if (!hayFiltrosActivos && primeraVez) {
+      setPrimeraVez(false);
+      return;
+    }
+
     const applyFilters = async () => {
-      console.log('🔧 APLICANDO FILTROS DINÁMICOS');
       setLoadingProductos(true);
-      const filtrosActivos = getFiltrosActivos();
       
       // Determinar qué categoría usar para filtrar
       let categoriaParaFiltros: number | undefined;
@@ -507,8 +520,8 @@ const Catalogo: React.FC = () => {
         categoriaParaFiltros = categoriaActual.id;
       }
       
-      if (Object.keys(filtrosActivos).length > 0) {
-        // 1. Filtrar productos
+      if (hayFiltrosActivos) {
+        // CON filtros activos
         const response = await apiManager.atributos.filtrarProductosSimple(
           filtrosActivos, 
           1, 
@@ -518,48 +531,30 @@ const Catalogo: React.FC = () => {
         
         if (response.success && response.data) {
           setProductos(response.data.productos);
+          setCurrentPage(1);
+          setHasMore(response.data.productos.length >= PRODUCTOS_POR_PAGINA);
         }
         
-        // 2. Actualizar filtros dinámicos
+        // Actualizar filtros dinámicos
         const filtrosDinamicosResponse = await apiManager.atributos.obtenerFiltrosDinamicos(
           categoriaParaFiltros,
           filtrosActivos
         );
-
-        console.log('🔍 Filtros enviados al backend:', filtrosActivos);
-        console.log('🔍 Respuesta filtros dinámicos:', filtrosDinamicosResponse.data);
               
-      if (filtrosDinamicosResponse.success && filtrosDinamicosResponse.data) {
-        const atributosActualizados = filtrosDinamicosResponse.data.filtros;
-        
-        // Reemplazar COMPLETAMENTE los filtros
-        setAtributos(atributosActualizados);
-      }
-            
-      } else {
-        // Sin filtros - recargar productos originales Y filtros completos
-        console.log('🔄 SIN FILTROS - Recargando todo');
-        await recargarProductosOriginales();
-        
-        // Recargar filtros completos (no dinámicos) - SIN TOCAR setFilters
-        if (categoriaParaFiltros) {
-          console.log('🔄 Recargando filtros completos para categoría:', categoriaParaFiltros);
-          const filtrosResponse = await apiManager.atributos.obtenerFiltros(categoriaParaFiltros);
-          if (filtrosResponse.success && filtrosResponse.data) {
-            const atributosData = filtrosResponse.data.filtros;
-            console.log('🔄 Filtros recargados:', atributosData);
-            setAtributos(atributosData);
-          }
+        if (filtrosDinamicosResponse.success && filtrosDinamicosResponse.data) {
+          setAtributos(filtrosDinamicosResponse.data.filtros);
         }
-      }    
+      }
+      // SIN filtros activos - NO HACER NADA (ya están cargados)
+      
       setLoadingProductos(false);
     };
     
-    if (atributos.length > 0) {
+    // Solo ejecutar si hay filtros o si ya pasó la primera vez
+    if (hayFiltrosActivos || !primeraVez) {
       applyFilters();
     }
-  }, [filters, atributos.length, categoriaActual, terminoBusqueda]); // ← Agregada dependencia
-  
+  }, [filters, categoriaActual, terminoBusqueda, loading, primeraVez, getFiltrosActivos]);  
 
   const handleFilterChange = (atributoId: string, valor: string) => {
     setFilters(prev => ({
