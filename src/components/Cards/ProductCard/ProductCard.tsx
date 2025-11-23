@@ -68,17 +68,17 @@ const ProductCard: React.FC<ProductCardProps> = ({
       </div>
 
       {/* Título del producto */}
-      <h3 className="text-gray-800 font-semibold text-sm mb-2 leading-5">
+      <h3 className="text-gray-800 font-semibold text-s mb-2 leading-5 break-words">
         {title}
       </h3>
 
-      {/* Descripción */}
-      <p className="text-gray-600 text-xs mb-4 leading-4">
+      {/* Descripción - ✅ CORREGIDO: Agregado break-words y line-clamp */}
+      <p className="text-gray-600 text-sm mb-4 leading-4 break-words line-clamp-3">
         {description}
       </p>
 
       {/* Precio */}
-      <div className="text-gray-800 font-medium text-sm mb-4">
+      <div className="text-gray-800 font-medium text-sm mb-1">
         {price}
       </div>
 

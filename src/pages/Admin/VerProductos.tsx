@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
@@ -29,25 +29,68 @@ const VerProductos: React.FC = () => {
   const [changingStatus, setChangingStatus] = useState<number | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
 
+  // ✅ NUEVOS ESTADOS para filtros
+  const [categorias, setCategorias] = useState<any[]>([]);
+  const [categoriaFiltro, setCategoriaFiltro] = useState<string>('');
+  const [estadoFiltro, setEstadoFiltro] = useState<string>('todos');
+
   // Estados del modal
   const [showProductoModal, setShowProductoModal] = useState(false);
   const [editingProducto, setEditingProducto] = useState<Producto | null>(null);
 
+  // ✅ NUEVOS ESTADOS para infinite scroll
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const observerTarget = useRef<HTMLDivElement>(null);
+
   const productsPerPage = 10;
 
-  // Cargar productos - cuando cambie la página o el filtro activo
+  // ✅ NUEVO: Cargar categorías al montar el componente
   useEffect(() => {
-    loadProductos();
-  }, [currentPage, activeSearchTerm]);
+    const loadCategorias = async () => {
+      try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/categorias.php?action=list`, {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const result = await response.json();
+        if (result.success && result.data) {
+          setCategorias(result.data.categorias || []);
+        }
+      } catch (error) {
+        console.error('Error cargando categorías:', error);
+      }
+    };
+    
+    loadCategorias();
+  }, []);
 
-  const loadProductos = async () => {
+  // ✅ MODIFICADO: Función loadProductos con soporte para infinite scroll Y FILTROS
+  const loadProductos = async (reset: boolean = false) => {
     try {
-      setLoading(true);
+      // Si es un reset, usar loading normal, sino loadingMore
+      if (reset) {
+        setLoading(true);
+        setCurrentPage(1);
+      } else {
+        setLoadingMore(true);
+      }
+      
       setError(null);
 
+      const pageToLoad = reset ? 1 : currentPage;
       const searchParam = activeSearchTerm.trim() ? `&search=${encodeURIComponent(activeSearchTerm)}` : '';
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=list-admin&page=${currentPage}&limit=${productsPerPage}${searchParam}`, {
+      // ✅ NUEVO: Agregar parámetros de filtros
+      const categoriaParam = categoriaFiltro ? `&categoria_id=${categoriaFiltro}` : '';
+      const estadoParam = estadoFiltro === 'activos' ? '&activo=1' : estadoFiltro === 'inactivos' ? '&activo=0' : '';
+      
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=list-admin&page=${pageToLoad}&limit=${productsPerPage}${searchParam}${categoriaParam}${estadoParam}`, {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -59,25 +102,77 @@ const VerProductos: React.FC = () => {
       const result = await response.json();
 
       if (result.success && result.data) {
-        setProductos(result.data.productos || []);
+        const nuevosProductos = result.data.productos || [];
+        
+        // Si es reset, reemplazar productos, sino agregar
+        if (reset) {
+          setProductos(nuevosProductos);
+        } else {
+          setProductos(prev => [...prev, ...nuevosProductos]);
+        }
+        
         setTotalProductos(result.data.pagination?.total || 0);
-        setTotalPages(result.data.pagination?.pages || 0);
+        setTotalPages(result.data.pagination?.total_pages || 0);
+        setHasMore(result.data.pagination?.has_next || false);
         setAccessDenied(false);
       } else {
         if (response.status === 403) {
           setAccessDenied(true);
           setError('Acceso denegado. Solo administradores pueden ver esta página.');
         } else {
-          setError(result.error || 'Error al cargar productos');
+          setError(result.message || 'Error al cargar productos');
         }
       }
     } catch (err) {
-      console.error('Error cargando productos:', err);
+      console.error('Error:', err);
       setError('Error de conexión al cargar productos');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
+
+  // ✅ MODIFICADO: useEffect que carga productos (reset cuando cambia búsqueda O FILTROS)
+  useEffect(() => {
+    loadProductos(true);
+  }, [activeSearchTerm, categoriaFiltro, estadoFiltro]);
+
+  // ✅ NUEVO: useEffect para infinite scroll con IntersectionObserver
+  useEffect(() => {
+    if (!hasMore || loadingMore || loading) {
+      return;
+    }
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          setCurrentPage(prev => prev + 1);
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '100px'
+      }
+    );
+
+    const currentTarget = observerTarget.current;
+    if (currentTarget) {
+      observer.observe(currentTarget);
+    }
+
+    return () => {
+      if (currentTarget) {
+        observer.unobserve(currentTarget);
+      }
+    };
+  }, [hasMore, loadingMore, loading]);
+
+  // ✅ NUEVO: useEffect para cargar cuando cambie currentPage (excepto página 1)
+  useEffect(() => {
+    if (currentPage > 1) {
+      loadProductos(false);
+    }
+  }, [currentPage]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -182,13 +277,13 @@ const VerProductos: React.FC = () => {
       }
 
       // Recargar productos y cerrar modal
-      await loadProductos();
+      await loadProductos(true);
       setShowProductoModal(false);
       setEditingProducto(null);
       
     } catch (error: any) {
       console.error('Error guardando producto:', error);
-      throw error; // Re-lanzar para que el modal lo maneje
+      throw error;
     }
   };
 
@@ -312,45 +407,104 @@ const VerProductos: React.FC = () => {
 
           {/* Barra de búsqueda y estadísticas */}
           <div className="bg-white rounded-lg shadow mb-6 p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+            <div className="flex flex-col space-y-4">
               
-              {/* Búsqueda */}
-              <form onSubmit={handleSearch} className="flex space-x-2">
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Buscar por nombre o descripción..."
-                  className="flex-1 min-w-0 px-4 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500"
-                />
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
-                >
-                  Buscar
-                </button>
-                {activeSearchTerm && (
+              {/* Fila 1: Búsqueda y Estadísticas */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+                
+                {/* Búsqueda */}
+                <form onSubmit={handleSearch} className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Buscar por nombre o descripción..."
+                    className="flex-1 min-w-0 px-4 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500"
+                  />
                   <button
-                    type="button"
-                    onClick={handleClearSearch}
-                    className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                    type="submit"
+                    className="px-6 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
                   >
-                    Limpiar
+                    Buscar
                   </button>
-                )}
-              </form>
+                  {activeSearchTerm && (
+                    <button
+                      type="button"
+                      onClick={handleClearSearch}
+                      className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                    >
+                      Limpiar
+                    </button>
+                  )}
+                </form>
 
-              {/* Estadísticas */}
-              <div className="text-sm text-gray-500">
-                {activeSearchTerm ? (
-                  <>
-                    <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs mr-2">
-                      Filtrando: "{activeSearchTerm}"
-                    </span>
-                    {totalProductos} resultado{totalProductos !== 1 ? 's' : ''}
-                  </>
-                ) : (
-                  <>Total: {totalProductos} productos</>
+                {/* Estadísticas */}
+                <div className="text-sm text-gray-500">
+                  {activeSearchTerm ? (
+                    <>
+                      <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs mr-2">
+                        Filtrando: "{activeSearchTerm}"
+                      </span>
+                      {totalProductos} resultado{totalProductos !== 1 ? 's' : ''}
+                    </>
+                  ) : (
+                    <>Total: {totalProductos} productos</>
+                  )}
+                </div>
+              </div>
+
+              {/* ✅ NUEVA Fila 2: Filtros */}
+              <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 pt-4 border-t border-gray-200">
+                <span className="text-sm font-medium text-gray-700">Filtros:</span>
+                
+                {/* Filtro Categoría */}
+                <div className="flex items-center space-x-2">
+                  <label htmlFor="categoria-filtro" className="text-sm text-gray-600">
+                    Categoría:
+                  </label>
+                  <select
+                    id="categoria-filtro"
+                    value={categoriaFiltro}
+                    onChange={(e) => setCategoriaFiltro(e.target.value)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="">Todas las categorías</option>
+                    {categorias.map((categoria) => (
+                      <option key={categoria.id} value={categoria.id}>
+                        {categoria.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Filtro Estado */}
+                <div className="flex items-center space-x-2">
+                  <label htmlFor="estado-filtro" className="text-sm text-gray-600">
+                    Estado:
+                  </label>
+                  <select
+                    id="estado-filtro"
+                    value={estadoFiltro}
+                    onChange={(e) => setEstadoFiltro(e.target.value)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="todos">Todos</option>
+                    <option value="activos">Activos</option>
+                    <option value="inactivos">Inactivos</option>
+                  </select>
+                </div>
+
+                {/* Botón limpiar filtros */}
+                {(categoriaFiltro || estadoFiltro !== 'todos') && (
+                  <button
+                    onClick={() => {
+                      setCategoriaFiltro('');
+                      setEstadoFiltro('todos');
+                    }}
+                    className="text-sm text-orange-600 hover:text-orange-700 underline"
+                  >
+                    Limpiar filtros
+                  </button>
                 )}
               </div>
             </div>
@@ -363,7 +517,7 @@ const VerProductos: React.FC = () => {
                 <div className="ml-3">
                   <p className="text-sm text-red-700">{error}</p>
                   <button 
-                    onClick={() => loadProductos()}
+                    onClick={() => loadProductos(true)}
                     className="mt-2 text-sm text-red-600 hover:text-red-500"
                   >
                     Intentar de nuevo
@@ -523,72 +677,32 @@ const VerProductos: React.FC = () => {
                   </table>
                 </div>
 
-                {/* Paginación */}
-                {totalPages > 1 && (
-                  <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-                    <div className="flex-1 flex justify-between sm:hidden">
-                      <button
-                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                        disabled={currentPage === 1}
-                        className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Anterior
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                        disabled={currentPage === totalPages}
-                        className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Siguiente
-                      </button>
-                    </div>
-                    <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm text-gray-700">
-                          Mostrando <span className="font-medium">{((currentPage - 1) * productsPerPage) + 1}</span> a{' '}
-                          <span className="font-medium">
-                            {Math.min(currentPage * productsPerPage, totalProductos)}
-                          </span>{' '}
-                          de <span className="font-medium">{totalProductos}</span> productos
-                        </p>
+                {/* ✅ NUEVO: Indicador de productos cargados */}
+                {!loading && productos.length > 0 && (
+                  <div className="bg-white px-4 py-3 border-t border-gray-200">
+                    <p className="text-sm text-gray-700">
+                      Mostrando <span className="font-medium">{productos.length}</span> de{' '}
+                      <span className="font-medium">{totalProductos}</span> productos
+                    </p>
+                  </div>
+                )}
+
+                {/* ✅ NUEVO: Elemento observador para infinite scroll */}
+                {hasMore && !loading && productos.length > 0 && (
+                  <div ref={observerTarget} className="py-8 text-center">
+                    {loadingMore && (
+                      <div className="flex flex-col items-center">
+                        <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full mb-2"></div>
+                        <p className="text-gray-600 text-sm">Cargando más productos...</p>
                       </div>
-                      <div>
-                        <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                          <button
-                            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                            disabled={currentPage === 1}
-                            className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            ‹
-                          </button>
-                          
-                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                            const pageNum = i + 1;
-                            return (
-                              <button
-                                key={pageNum}
-                                onClick={() => setCurrentPage(pageNum)}
-                                className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                                  currentPage === pageNum
-                                    ? 'z-10 bg-orange-50 border-orange-500 text-orange-600'
-                                    : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                                }`}
-                              >
-                                {pageNum}
-                              </button>
-                            );
-                          })}
-                          
-                          <button
-                            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                            disabled={currentPage === totalPages}
-                            className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            ›
-                          </button>
-                        </nav>
-                      </div>
-                    </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ✅ NUEVO: Mensaje cuando no hay más productos */}
+                {!hasMore && productos.length > 0 && !loading && (
+                  <div className="py-8 text-center text-gray-500">
+                    <p>No hay más productos para mostrar</p>
                   </div>
                 )}
               </>
