@@ -462,18 +462,41 @@ const VerProductos: React.FC = () => {
                   <label htmlFor="categoria-filtro" className="text-sm text-gray-600">
                     Categoría:
                   </label>
-                  <select
-                    id="categoria-filtro"
+                  <select 
                     value={categoriaFiltro}
-                    onChange={(e) => setCategoriaFiltro(e.target.value)}
-                    className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-orange-500 focus:border-orange-500"
+                    onChange={(e) => {
+                      setCategoriaFiltro(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="border rounded px-3 py-2"
                   >
                     <option value="">Todas las categorías</option>
-                    {categorias.map((categoria) => (
-                      <option key={categoria.id} value={categoria.id}>
-                        {categoria.nombre}
-                      </option>
-                    ))}
+                    {categorias
+                      .filter(cat => !cat.parent_id) // Solo padres primero
+                      .map((padre) => (
+                        <React.Fragment key={padre.id}>
+                          <option value={padre.id}>
+                            {padre.nombre}
+                          </option>
+                          {/* Mostrar hijos indentados */}
+                          {categorias
+                            .filter(hijo => hijo.parent_id === padre.id)
+                            .map(hijo => (
+                              <option key={hijo.id} value={hijo.id}>
+                                &nbsp;&nbsp;↳ {hijo.nombre}
+                              </option>
+                            ))}
+                        </React.Fragment>
+                      ))}
+                    
+                    {/* Categorías sin padre que no tengan hijos (por si acaso) */}
+                    {categorias
+                      .filter(cat => !cat.parent_id && !categorias.some(c => c.parent_id === cat.id))
+                      .map(cat => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.nombre}
+                        </option>
+                      ))}
                   </select>
                 </div>
 
