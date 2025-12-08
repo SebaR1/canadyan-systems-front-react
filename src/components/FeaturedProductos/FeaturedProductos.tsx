@@ -1,58 +1,95 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import ProductCard from '../Cards/ProductCard/ProductCard';
+import apiService from '../../services/ApiIndex';
+
+interface Producto {
+  id: number;
+  nombre: string;
+  descripcion: string;
+  precio: number | null;
+  stock: number;
+  imagen_principal_url?: string;
+}
 
 const FeaturedProducts: React.FC = () => {
-  // Datos de ejemplo - puedes moverlos a props o estado más adelante
-  const featuredProducts = [
-    {
-      id: 1,
-      image: 'https://picsum.photos/300/200?random=10',
-      title: 'KY-PP-S31L-20D Sfp+ 10g Lr 10km Sm Lc Dúplex',
-      description: 'Módulo transceptor de fibra óptica',
-      price: '$..........',
-      stock: 5
-    },
-    {
-      id: 2,
-      image: 'https://picsum.photos/300/200?random=11',
-      title: 'Router WiFi 6 AX3000 Dual Band',
-      description: 'Router inalámbrico de alta velocidad',
-      price: '$..........',
-      stock: 3
-    },
-    {
-      id: 3,
-      image: 'https://picsum.photos/300/200?random=12',
-      title: 'Switch Gigabit 24 Puertos PoE+',
-      description: 'Switch administrable con Power over Ethernet',
-      price: '$..........',
-      stock: 8
-    }
-  ];
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchProductos = async () => {
+      try {
+        setLoading(true);
+        const response = await apiService.productos.obtenerDestacados(6);
+        
+        if (response.success && response.data) {
+          setProductos(response.data.productos || []);
+        } else {
+          setError('Error al cargar productos destacados');
+        }
+      } catch (err) {
+        console.error('Error cargando productos destacados:', err);
+        setError('Error de conexión');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProductos();
+  }, []);
+
+  const formatearPrecio = (precio: number | null): string => {
+    if (precio === null) return 'Precio a consultar';
+    return new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: 'ARS'
+    }).format(precio);
+  };
+
+  if (loading) {
+    return (
+      <section className="bg-gray-50 py-12 px-4">
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold text-gray-900 text-center">
+            Productos destacados
+          </h2>
+        </div>
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500"></div>
+        </div>
+      </section>
+    );
+  }
+
+  if (error || productos.length === 0) {
+    return null; // No mostrar la sección si hay error o no hay productos
+  }
 
   return (
     <section className="bg-gray-50 py-12 px-4">
-      {/* Título de la sección */}
       <div className="mb-12">
         <h2 className="text-2xl font-bold text-gray-900 text-center">
           Productos destacados
         </h2>
       </div>
 
-      {/* Grid de productos */}
-      <div className="grid gap-6">
-        {/* En mobile: 1 columna, en tablet: 2 columnas, en desktop: 3 columnas */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-          {featuredProducts.map((product) => (
+      <div className="max-w-7xl mx-auto">
+        {/* ✅ Grid responsive con justify-center para centrar cuando hay pocos items */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6 justify-items-center">
+          {productos.map((producto) => (
             <ProductCard
-              key={product.id}
-              id={product.id}
-              image={product.image}
-              title={product.title}
-              description={product.description}
-              price={product.price}
-              stock={product.stock}
-              className="w-full max-w-64 mx-auto"
+              key={producto.id}
+              id={producto.id}
+              image={
+                producto.imagen_principal_url
+                  ? `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/${producto.imagen_principal_url}`
+                  : undefined
+              }
+              title={producto.nombre}
+              description={producto.descripcion || ''}
+              price={formatearPrecio(producto.precio)}
+              stock={producto.stock}
+              className="w-full max-w-sm" // ✅ Limitar ancho máximo de cada card
             />
           ))}
         </div>

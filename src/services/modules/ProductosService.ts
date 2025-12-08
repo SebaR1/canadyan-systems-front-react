@@ -86,8 +86,14 @@ export class ProductosService {
 
 
   // Obtener productos destacados
-  async obtenerDestacados(limit?: number): Promise<ApiResponse<Producto[]>> {
-    return this.apiClient.get<Producto[]>('/api/routes/productos.php?action=featured', { limit });
+  async obtenerDestacados(limit?: number): Promise<ApiResponse<{ 
+    productos: Producto[];
+    total: number;
+  }>> {
+    return this.apiClient.get<{ 
+      productos: Producto[];
+      total: number;
+    }>('/api/routes/productos.php?action=featured', { limit });
   }
 
   // Obtener productos más vendidos
@@ -128,5 +134,18 @@ export class ProductosService {
     valor_total_inventario: number;
   }>> {
     return this.apiClient.get('/api/routes/productos.php?action=stats');
+  }
+
+  // Marcar/desmarcar como destacado (admin)
+  async toggleDestacado(id: number): Promise<ApiResponse<{ 
+    producto_id: number;
+    destacado_anterior: boolean;
+    destacado_nuevo: boolean;
+  }>> {
+    return this.apiClient.patch<{
+      producto_id: number;
+      destacado_anterior: boolean;
+      destacado_nuevo: boolean;
+    }>(`/api/routes/productos.php?action=toggle-featured&id=${id}`, {});
   }
 }

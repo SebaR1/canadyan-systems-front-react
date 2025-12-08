@@ -47,6 +47,7 @@ export interface Producto {
   categoria_nombre?: string;
   imagen_url?: string;
   stock: number;
+  destacado: boolean;
   activo: boolean;
   created_at: string;
   updated_at?: string;

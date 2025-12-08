@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
@@ -43,6 +43,8 @@ const VerProductos: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const observerTarget = useRef<HTMLDivElement>(null);
 
+  const [changingFeatured, setChangingFeatured] = useState<number | null>(null);
+
   const productsPerPage = 10;
 
   // ✅ NUEVO: Cargar categorías al montar el componente
@@ -71,7 +73,7 @@ const VerProductos: React.FC = () => {
   }, []);
 
   // ✅ MODIFICADO: Función loadProductos con soporte para infinite scroll Y FILTROS
-  const loadProductos = async (reset: boolean = false) => {
+  const loadProductos = useCallback(async (reset: boolean = false) => {
     try {
       // Si es un reset, usar loading normal, sino loadingMore
       if (reset) {
@@ -98,7 +100,6 @@ const VerProductos: React.FC = () => {
           'Content-Type': 'application/json'
         }
       });
-      
       const result = await response.json();
 
       if (result.success && result.data) {
@@ -130,14 +131,14 @@ const VerProductos: React.FC = () => {
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [currentPage, activeSearchTerm, categoriaFiltro, estadoFiltro]);
 
-  // ✅ MODIFICADO: useEffect que carga productos (reset cuando cambia búsqueda O FILTROS)
   useEffect(() => {
     loadProductos(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSearchTerm, categoriaFiltro, estadoFiltro]);
 
-  // ✅ NUEVO: useEffect para infinite scroll con IntersectionObserver
+  // useEffect para infinite scroll con IntersectionObserver
   useEffect(() => {
     if (!hasMore || loadingMore || loading) {
       return;
@@ -167,11 +168,11 @@ const VerProductos: React.FC = () => {
     };
   }, [hasMore, loadingMore, loading]);
 
-  // ✅ NUEVO: useEffect para cargar cuando cambie currentPage (excepto página 1)
   useEffect(() => {
     if (currentPage > 1) {
       loadProductos(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -218,6 +219,44 @@ const VerProductos: React.FC = () => {
       setError('Error de conexión al cambiar estado');
     } finally {
       setChangingStatus(null);
+    }
+  };
+
+  const toggleProductFeatured = async (id: number, currentStatus: boolean) => {
+    if (changingFeatured !== null) return;
+    
+    try {
+      setChangingFeatured(id);
+      
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=toggle-featured&id=${id}`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        }
+      );
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        // Actualizar estado local
+        setProductos(productos.map(p => 
+          p.id === id 
+            ? { ...p, destacado: !currentStatus }
+            : p
+        ));
+      } else {
+        setError(result.error || 'Error al cambiar el estado destacado');
+      }
+    } catch (err) {
+      console.error('Error cambiando destacado:', err);
+      setError('Error de conexión al cambiar destacado');
+    } finally {
+      setChangingFeatured(null);
     }
   };
 
@@ -591,6 +630,9 @@ const VerProductos: React.FC = () => {
                           Estado
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Destacado
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Fecha
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -650,6 +692,26 @@ const VerProductos: React.FC = () => {
                             <span className={getStatusClass(producto.activo)}>
                               {producto.activo ? 'Activo' : 'Inactivo'}
                             </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-center">
+                            <button
+                              onClick={() => toggleProductFeatured(producto.id, producto.destacado)}
+                              disabled={changingFeatured === producto.id}
+                              className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
+                                producto.destacado
+                                  ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
+                                  : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                              } disabled:opacity-50 disabled:cursor-not-allowed`}
+                              title={producto.destacado ? 'Quitar de destacados' : 'Marcar como destacado'}
+                            >
+                              {changingFeatured === producto.id ? (
+                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                              ) : (
+                                <svg className="w-5 h-5" fill={producto.destacado ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                                </svg>
+                              )}
+                            </button>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {formatDate(producto.created_at)}
