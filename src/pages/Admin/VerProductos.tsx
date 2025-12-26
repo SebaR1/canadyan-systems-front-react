@@ -29,10 +29,13 @@ const VerProductos: React.FC = () => {
   const [changingStatus, setChangingStatus] = useState<number | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
 
-  // ✅ NUEVOS ESTADOS para filtros
+  // para filtros
   const [categorias, setCategorias] = useState<any[]>([]);
   const [categoriaFiltro, setCategoriaFiltro] = useState<string>('');
   const [estadoFiltro, setEstadoFiltro] = useState<string>('todos');
+  const [destacadoFiltro, setDestacadoFiltro] = useState<string>('todos');
+  const [imagenFiltro, setImagenFiltro] = useState<string>('todos');
+
 
   // Estados del modal
   const [showProductoModal, setShowProductoModal] = useState(false);
@@ -75,7 +78,6 @@ const VerProductos: React.FC = () => {
   // ✅ MODIFICADO: Función loadProductos con soporte para infinite scroll Y FILTROS
   const loadProductos = useCallback(async (reset: boolean = false) => {
     try {
-      // Si es un reset, usar loading normal, sino loadingMore
       if (reset) {
         setLoading(true);
         setCurrentPage(1);
@@ -88,24 +90,33 @@ const VerProductos: React.FC = () => {
       const pageToLoad = reset ? 1 : currentPage;
       const searchParam = activeSearchTerm.trim() ? `&search=${encodeURIComponent(activeSearchTerm)}` : '';
       
-      // ✅ NUEVO: Agregar parámetros de filtros
+      // Parámetros de filtros existentes
       const categoriaParam = categoriaFiltro ? `&categoria_id=${categoriaFiltro}` : '';
       const estadoParam = estadoFiltro === 'activos' ? '&activo=1' : estadoFiltro === 'inactivos' ? '&activo=0' : '';
       
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=list-admin&page=${pageToLoad}&limit=${productsPerPage}${searchParam}${categoriaParam}${estadoParam}`, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
+      // PARÁMETROS DE FILTROS
+      const destacadoParam = destacadoFiltro === 'destacados' ? '&destacado=1' 
+        : destacadoFiltro === 'no_destacados' ? '&destacado=0' : '';
+        
+      const imagenParam = imagenFiltro === 'con_imagen' ? '&tiene_imagen=1' 
+        : imagenFiltro === 'sin_imagen' ? '&tiene_imagen=0' : '';
+      
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=list-admin&page=${pageToLoad}&limit=${productsPerPage}${searchParam}${categoriaParam}${estadoParam}${destacadoParam}${imagenParam}`,
+        {
+          method: 'GET',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
         }
-      });
+      );
       const result = await response.json();
 
       if (result.success && result.data) {
         const nuevosProductos = result.data.productos || [];
         
-        // Si es reset, reemplazar productos, sino agregar
         if (reset) {
           setProductos(nuevosProductos);
         } else {
@@ -131,12 +142,12 @@ const VerProductos: React.FC = () => {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [currentPage, activeSearchTerm, categoriaFiltro, estadoFiltro]);
+  }, [currentPage, activeSearchTerm, categoriaFiltro, estadoFiltro, destacadoFiltro, imagenFiltro]);
 
   useEffect(() => {
     loadProductos(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSearchTerm, categoriaFiltro, estadoFiltro]);
+  }, [activeSearchTerm, categoriaFiltro, estadoFiltro, destacadoFiltro, imagenFiltro]);
 
   // useEffect para infinite scroll con IntersectionObserver
   useEffect(() => {
@@ -527,15 +538,6 @@ const VerProductos: React.FC = () => {
                             ))}
                         </React.Fragment>
                       ))}
-                    
-                    {/* Categorías sin padre que no tengan hijos (por si acaso) */}
-                    {categorias
-                      .filter(cat => !cat.parent_id && !categorias.some(c => c.parent_id === cat.id))
-                      .map(cat => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.nombre}
-                        </option>
-                      ))}
                   </select>
                 </div>
 
@@ -556,12 +558,48 @@ const VerProductos: React.FC = () => {
                   </select>
                 </div>
 
+                {/* Filtro Destacado */}
+                <div className="flex items-center space-x-2">
+                  <label htmlFor="destacado-filtro" className="text-sm text-gray-600">
+                    Destacado:
+                  </label>
+                  <select
+                    id="destacado-filtro"
+                    value={destacadoFiltro}
+                    onChange={(e) => setDestacadoFiltro(e.target.value)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="todos">Todos</option>
+                    <option value="destacados">Destacados</option>
+                    <option value="no_destacados">No Destacados</option>
+                  </select>
+                </div>
+
+                {/* Filtro Imagen */}
+                <div className="flex items-center space-x-2">
+                  <label htmlFor="imagen-filtro" className="text-sm text-gray-600">
+                    Imagen:
+                  </label>
+                  <select
+                    id="imagen-filtro"
+                    value={imagenFiltro}
+                    onChange={(e) => setImagenFiltro(e.target.value)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:ring-orange-500 focus:border-orange-500"
+                  >
+                    <option value="todos">Todos</option>
+                    <option value="con_imagen">Con Imagen</option>
+                    <option value="sin_imagen">Sin Imagen</option>
+                  </select>
+                </div>
+
                 {/* Botón limpiar filtros */}
-                {(categoriaFiltro || estadoFiltro !== 'todos') && (
+                {(categoriaFiltro || estadoFiltro !== 'todos' || destacadoFiltro !== 'todos' || imagenFiltro !== 'todos') && (
                   <button
                     onClick={() => {
                       setCategoriaFiltro('');
                       setEstadoFiltro('todos');
+                      setDestacadoFiltro('todos');
+                      setImagenFiltro('todos');
                     }}
                     className="text-sm text-orange-600 hover:text-orange-700 underline"
                   >

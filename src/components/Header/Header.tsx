@@ -418,29 +418,29 @@ const Header: React.FC = () => {
                 {desktopDropdown === 'marcas' && (
                   <div className="absolute top-full left-0 mt-1 w-48 bg-black text-white rounded-md shadow-lg z-50">
                     <div className="py-2">
-                      <Link 
-                        to="/catalogo" 
+                      <Link
+                        to="/catalogo?marca=Hikvision"
                         className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
                         onClick={() => setDesktopDropdown(null)}
                       >
                         Hikvision
                       </Link>
-                      <Link 
-                        to="/catalogo" 
+                      <Link
+                        to="/catalogo?marca=Dahua"
                         className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
                         onClick={() => setDesktopDropdown(null)}
                       >
                         Dahua
                       </Link>
-                      <Link 
-                        to="/catalogo" 
+                      <Link
+                        to="/catalogo?marca=Ubiquiti"
                         className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
                         onClick={() => setDesktopDropdown(null)}
                       >
                         Ubiquiti
                       </Link>
-                      <Link 
-                        to="/catalogo" 
+                      <Link
+                        to="/catalogo?marca=TP-Link"
                         className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
                         onClick={() => setDesktopDropdown(null)}
                       >
@@ -655,27 +655,27 @@ const Header: React.FC = () => {
             {/* Submarcas */}
             {expandedCategory === 'marcas' && (
               <div className="ml-4 mt-2 space-y-1">
-                <button 
+                <button
                   className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
-                  onClick={() => handleNavigation('/catalogo')}
+                  onClick={() => handleNavigation('/catalogo?marca=Hikvision')}
                 >
                   Hikvision
                 </button>
-                <button 
+                <button
                   className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
-                  onClick={() => handleNavigation('/catalogo')}
+                  onClick={() => handleNavigation('/catalogo?marca=Dahua')}
                 >
                   Dahua
                 </button>
-                <button 
+                <button
                   className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
-                  onClick={() => handleNavigation('/catalogo')}
+                  onClick={() => handleNavigation('/catalogo?marca=Ubiquiti')}
                 >
                   Ubiquiti
                 </button>
-                <button 
+                <button
                   className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
-                  onClick={() => handleNavigation('/catalogo')}
+                  onClick={() => handleNavigation('/catalogo?marca=TP-Link')}
                 >
                   TP-Link
                 </button>

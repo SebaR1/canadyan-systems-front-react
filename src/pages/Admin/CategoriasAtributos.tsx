@@ -30,11 +30,14 @@ const CategoriasAtributos: React.FC = () => {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loadingCategorias, setLoadingCategorias] = useState(true);
   const [errorCategorias, setErrorCategorias] = useState<string | null>(null);
-  
+
   // Estados para atributos
   const [atributos, setAtributos] = useState<Atributo[]>([]);
   const [loadingAtributos, setLoadingAtributos] = useState(true);
   const [errorAtributos, setErrorAtributos] = useState<string | null>(null);
+
+  // Estado de acceso
+  const [accessDenied, setAccessDenied] = useState(false);
   
   // Estados de modales
   const [showCategoriaModal, setShowCategoriaModal] = useState(false);
@@ -77,7 +80,14 @@ const CategoriasAtributos: React.FC = () => {
           'Content-Type': 'application/json'
         }
       });
-      
+
+      // Verificar acceso denegado
+      if (response.status === 403) {
+        setAccessDenied(true);
+        setErrorCategorias('Acceso denegado. Solo administradores pueden ver esta página.');
+        return;
+      }
+
       const result = await response.json();
       console.log('🗂️ Respuesta categorías:', result);
 
@@ -98,6 +108,8 @@ const CategoriasAtributos: React.FC = () => {
   const loadAtributos = async () => {
     try {
       setLoadingAtributos(true);
+      setErrorAtributos(null);
+
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/atributos.php?action=list`, {
         method: 'GET',
         credentials: 'include',
@@ -106,10 +118,17 @@ const CategoriasAtributos: React.FC = () => {
           'Content-Type': 'application/json'
         }
       });
-      
+
+      // Verificar acceso denegado
+      if (response.status === 403) {
+        setAccessDenied(true);
+        setErrorAtributos('Acceso denegado. Solo administradores pueden ver esta página.');
+        return;
+      }
+
       const result = await response.json();
       console.log('🏷️ Respuesta atributos modal:', result);
-      
+
       if (result.success) {
         // ✅ CORREGIDO: Buscar en result.data.atributos igual que en CategoriasAtributos
         setAtributos(result.data?.atributos || []);
@@ -309,6 +328,41 @@ const CategoriasAtributos: React.FC = () => {
     };
     return tipos[tipo] || tipo;
   };
+
+  // Si el acceso fue denegado, mostrar página de error
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+          <div className="mb-4">
+            <svg
+              className="mx-auto h-12 w-12 text-red-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Acceso Denegado</h2>
+          <p className="text-gray-600 mb-6">
+            No tienes permisos para acceder a esta página. Solo los administradores pueden gestionar categorías y atributos.
+          </p>
+          <button
+            onClick={() => navigate('/')}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Volver al Inicio
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

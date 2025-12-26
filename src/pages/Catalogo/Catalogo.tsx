@@ -34,8 +34,13 @@ const Catalogo: React.FC = () => {
   const [subcategorias, setSubcategorias] = useState<Categoria[]>([]);
   const [subcategoriaSeleccionada, setSubcategoriaSeleccionada] = useState<number | null>(null);
 
+  // ✅ NUEVO: Estados para marcas
+  const [marcasDisponibles, setMarcasDisponibles] = useState<string[]>([]);
+  const [marcaSeleccionada, setMarcaSeleccionada] = useState<string>('');
+
   // ✅ NUEVO: Estado para detectar modo búsqueda
   const terminoBusqueda = searchParams.get('busqueda');
+  const marcaInicial = searchParams.get('marca');
 
   const [currentPage, setCurrentPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -156,7 +161,16 @@ const Catalogo: React.FC = () => {
     clearFilters();
   };
 
-  
+  // ✅ NUEVA FUNCIÓN: Manejar cambio de marca
+  const handleMarcaChange = (marca: string) => {
+    // Cambiar a otra marca - actualizar URL con nueva marca
+    const currentPath = categoriaSlug
+      ? `/catalogo/${categoriaSlug}${subcategoriaSlug ? `/${subcategoriaSlug}` : ''}`
+      : '/catalogo';
+    navigate(`${currentPath}?marca=${marca}`);
+  };
+
+
 
     // Función para obtener filtros activos
   const getFiltrosActivos = useCallback((): Record<string, string[]> => {
@@ -445,7 +459,15 @@ const Catalogo: React.FC = () => {
         if (filtrosResponse.success && filtrosResponse.data) {
           const atributosData = filtrosResponse.data.filtros;
           setAtributos(atributosData);
-          
+
+          // ✅ Extraer marcas disponibles del atributo "Marca"
+          const atributoMarca = atributosData.find(
+            (attr: AtributoConValores) => attr.nombre.toLowerCase() === 'marca'
+          );
+          if (atributoMarca) {
+            setMarcasDisponibles(atributoMarca.valores);
+          }
+
           const initialFilters: FilterState = {};
           atributosData.forEach(atributo => {
             initialFilters[atributo.id.toString()] = {};
@@ -453,7 +475,44 @@ const Catalogo: React.FC = () => {
               initialFilters[atributo.id.toString()][valor] = false;
             });
           });
-          setFilters(initialFilters);
+
+          // ✅ Aplicar filtro de marca inicial si viene de URL
+          if (marcaInicial && !terminoBusqueda) {
+            // Buscar el atributo "Marca"
+            const atributoMarca = atributosData.find(
+              (attr: AtributoConValores) => attr.nombre.toLowerCase() === 'marca'
+            );
+
+            if (atributoMarca) {
+              // Buscar el valor exacto (case-insensitive)
+              const valorReal = atributoMarca.valores.find(
+                (v: string) => v.toLowerCase() === marcaInicial.toLowerCase()
+              );
+
+              if (valorReal) {
+                // Crear nuevo objeto de filtros con marca activada
+                const filtrosConMarca = { ...initialFilters };
+                filtrosConMarca[atributoMarca.id.toString()][valorReal] = true;
+                setFilters(filtrosConMarca);
+
+                // ✅ Setear marca seleccionada para el dropdown
+                setMarcaSeleccionada(valorReal);
+
+                console.log(`✅ Filtro de marca aplicado: ${valorReal}`);
+              } else {
+                console.warn(`⚠️ La marca "${marcaInicial}" no está disponible en el catálogo`);
+                setFilters(initialFilters);
+                setMarcaSeleccionada('');
+              }
+            } else {
+              console.warn('⚠️ No se encontró el atributo "Marca" en los filtros');
+              setFilters(initialFilters);
+              setMarcaSeleccionada('');
+            }
+          } else {
+            setFilters(initialFilters);
+            setMarcaSeleccionada('');
+          }
         }
 
       } catch (error) {
@@ -772,7 +831,25 @@ useEffect(() => {
             {!terminoBusqueda && (
               <aside className="hidden lg:block w-64 flex-shrink-0">
                 <div className="bg-white rounded-lg p-4 shadow-sm">
-                  
+
+                  {/* ✅ NUEVO: Selector de marcas - Solo si viene de URL con ?marca= */}
+                  {marcasDisponibles.length > 0 && marcaInicial && (
+                    <div className="mb-6 pb-4 border-b border-gray-200">
+                      <h3 className="font-bold text-sm text-gray-900 mb-3">Marca</h3>
+                      <select
+                        value={marcaSeleccionada}
+                        onChange={(e) => handleMarcaChange(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-orange-500 bg-orange-50"
+                      >
+                        {marcasDisponibles.map((marca) => (
+                          <option key={marca} value={marca}>
+                            {marca}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   {/* Selector de subcategorías */}
                   {subcategorias.length > 0 && (
                     <div className="mb-6 pb-4 border-b border-gray-200">
