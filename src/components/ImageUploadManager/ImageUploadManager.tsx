@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useImperativeHandle, forwardRef } from 'react';
 import { ProductoImagen } from '../../services/modules/ProductoImagenService';
 import ImageCropper from '../ImageCropper/ImageCropper';
 
@@ -11,6 +11,11 @@ interface ImageUploadManagerProps {
   onSetPrincipal: (imagenId: number) => Promise<void>;
   maxImagenes?: number;
   disabled?: boolean;
+  onPreviewsChange?: (hasPreviews: boolean, validPreviews: File[]) => void; // Nuevo: notificar cambios en previews
+}
+
+export interface ImageUploadManagerRef {
+  uploadPendingImages: () => Promise<boolean>; // Retorna true si se subieron imágenes
 }
 
 interface ImagePreview {
@@ -20,7 +25,7 @@ interface ImagePreview {
   error?: string;
 }
 
-const ImageUploadManager: React.FC<ImageUploadManagerProps> = ({
+const ImageUploadManager = forwardRef<ImageUploadManagerRef, ImageUploadManagerProps>(({
   productoId,
   imagenes,
   onImagenesChange,
@@ -28,16 +33,51 @@ const ImageUploadManager: React.FC<ImageUploadManagerProps> = ({
   onDelete,
   onSetPrincipal,
   maxImagenes = 10,
-  disabled = false
-}) => {
+  disabled = false,
+  onPreviewsChange
+}, ref) => {
   const [previews, setPreviews] = useState<ImagePreview[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Estados para el cropper
   const [showCropper, setShowCropper] = useState(false);
   const [imageToCrop, setImageToCrop] = useState<{ url: string; file: File } | null>(null);
+
+  // Notificar cambios en previews al componente padre
+  React.useEffect(() => {
+    if (onPreviewsChange) {
+      const validPreviews = previews.filter(p => p.valid).map(p => p.file);
+      onPreviewsChange(previews.length > 0, validPreviews);
+    }
+  }, [previews, onPreviewsChange]);
+
+  // Exponer función para subir imágenes pendientes desde el componente padre
+  useImperativeHandle(ref, () => ({
+    uploadPendingImages: async () => {
+      const validFiles = previews.filter(p => p.valid).map(p => p.file);
+
+      if (validFiles.length === 0) {
+        return false; // No hay imágenes para subir
+      }
+
+      try {
+        setUploading(true);
+        await onUpload(validFiles);
+
+        // Limpiar previews exitosos
+        previews.forEach(p => URL.revokeObjectURL(p.preview));
+        setPreviews([]);
+        return true; // Imágenes subidas exitosamente
+      } catch (error) {
+        console.error('Error al subir imágenes:', error);
+        throw error; // Propagar el error para que el padre lo maneje
+      } finally {
+        setUploading(false);
+      }
+    }
+  }));
 
   // Validar imagen
   const validateImage = (file: File): Promise<{ valid: boolean; error?: string }> => {
@@ -132,8 +172,8 @@ const ImageUploadManager: React.FC<ImageUploadManagerProps> = ({
       const file = files[i];
       const validation = await validateImage(file);
       
-      // Si la imagen NO es válida por proporción, abrir cropper
-      if (!validation.valid && validation.error?.includes('Proporción inválida')) {
+      // Si la imagen NO es válida por proporción o tamaño, abrir cropper
+      if (!validation.valid && (validation.error?.includes('Proporción inválida') || validation.error?.includes('Mínimo'))) {
         const url = URL.createObjectURL(file);
         setImageToCrop({ url, file });
         setShowCropper(true);
@@ -302,14 +342,9 @@ const ImageUploadManager: React.FC<ImageUploadManagerProps> = ({
             <h4 className="text-sm font-medium text-gray-700">
               Imágenes seleccionadas ({previews.length})
             </h4>
-            <button
-              type="button"
-              onClick={handleUpload}
-              disabled={uploading || previews.every(p => !p.valid)}
-              className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm"
-            >
-              {uploading ? 'Subiendo...' : 'Subir imágenes'}
-            </button>
+            <p className="text-xs text-gray-500">
+              {uploading ? 'Subiendo...' : 'Se subirán al guardar el producto'}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -444,6 +479,8 @@ const ImageUploadManager: React.FC<ImageUploadManagerProps> = ({
       )}
     </div>
   );
-};
+});
+
+ImageUploadManager.displayName = 'ImageUploadManager';
 
 export default ImageUploadManager;

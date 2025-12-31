@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import ReactCrop, { Crop, PixelCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
 
@@ -40,8 +40,31 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
   const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null);
   const [aspect, setAspect] = useState<number>(1); // Default cuadrado
   const [processing, setProcessing] = useState(false);
-  
+
   const imgRef = useRef<HTMLImageElement | null>(null);
+
+  // Estado para mostrar dimensiones en tiempo real
+  const [cropDimensions, setCropDimensions] = useState<{
+    width: number;
+    height: number;
+    isValid: boolean;
+  } | null>(null);
+
+  const MIN_SIZE = 500; // Tamaño mínimo requerido
+
+  // Calcular dimensiones finales cuando el crop cambia
+  useEffect(() => {
+    if (completedCrop && imgRef.current) {
+      const scaleX = imgRef.current.naturalWidth / imgRef.current.width;
+      const scaleY = imgRef.current.naturalHeight / imgRef.current.height;
+
+      const finalWidth = Math.round(completedCrop.width * scaleX);
+      const finalHeight = Math.round(completedCrop.height * scaleY);
+      const isValid = finalWidth >= MIN_SIZE && finalHeight >= MIN_SIZE;
+
+      setCropDimensions({ width: finalWidth, height: finalHeight, isValid });
+    }
+  }, [completedCrop]);
 
   // Cambiar proporción
   const handleAspectChange = (newAspect: number) => {
@@ -231,7 +254,31 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
 
         {/* Área de recorte */}
         <div className="flex-1 overflow-auto p-6 bg-gray-100">
-          <div className="flex items-center justify-center min-h-full">
+          <div className="flex items-center justify-center min-h-full relative">
+            {/* Indicador compacto de dimensiones - flotante arriba */}
+            {cropDimensions && (
+              <div className="absolute top-4 right-4 z-10">
+                <div className={`px-3 py-2 rounded-lg shadow-md text-sm font-medium ${
+                  cropDimensions.isValid
+                    ? 'bg-green-100 text-green-800 border border-green-300'
+                    : 'bg-red-100 text-red-800 border border-red-300'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {cropDimensions.isValid ? (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                    <span>{cropDimensions.width} × {cropDimensions.height}px</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <ReactCrop
               crop={crop}
               onChange={(c) => setCrop(c)}
@@ -251,11 +298,11 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                   const imgWidth = img.width;
                   const imgHeight = img.height;
                   const imgAspect = imgWidth / imgHeight;
-                  
+
                   // Calcular crop óptimo inicial (usar 80% del área disponible)
                   let cropWidth: number;
                   let cropHeight: number;
-                  
+
                   if (aspect >= imgAspect) {
                     // La proporción deseada es más ancha que la imagen
                     cropWidth = imgWidth * 0.8;
@@ -265,11 +312,11 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                     cropHeight = imgHeight * 0.8;
                     cropWidth = cropHeight * aspect;
                   }
-                  
+
                   // Convertir a porcentaje y centrar
                   const cropWidthPercent = (cropWidth / imgWidth) * 100;
                   const cropHeightPercent = (cropHeight / imgHeight) * 100;
-                  
+
                   setCrop({
                     unit: '%',
                     width: Math.min(cropWidthPercent, 95),

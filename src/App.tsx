@@ -22,10 +22,11 @@ function App() {
         
         {/* Ruta original (mantener para compatibilidad) */}
         <Route path="/catalogo" element={<Catalogo />} />
-        
-        {/* NUEVAS RUTAS con slugs */}
+
+        {/* NUEVAS RUTAS con slugs - Soporta hasta 3 niveles */}
         <Route path="/catalogo/:categoriaSlug" element={<Catalogo />} />
         <Route path="/catalogo/:categoriaSlug/:subcategoriaSlug" element={<Catalogo />} />
+        <Route path="/catalogo/:categoriaSlug/:subcategoriaSlug/:subsubcategoriaSlug" element={<Catalogo />} />
         
         {/* NUEVA RUTA: Vista de producto individual */}
         <Route path="/producto/:id" element={<ProductDetail />} />

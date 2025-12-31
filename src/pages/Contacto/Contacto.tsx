@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import apiManager from '../../services/ApiIndex';
 
 const Contacto: React.FC = () => {
+  const location = useLocation();
   const [formData, setFormData] = useState({
     nombreApellido: '',
     cuit: '',
@@ -46,6 +47,25 @@ const Contacto: React.FC = () => {
 
     cargarDatosUsuario();
   }, []);
+
+  // Prellenar mensaje si viene información del producto
+  useEffect(() => {
+    const estadoNavegacion = location.state as { producto?: string; codigo?: string } | null;
+
+    if (estadoNavegacion?.producto) {
+      const mensajeProducto = estadoNavegacion.codigo
+        ? `Hola, estoy interesado en el producto "${estadoNavegacion.producto}" (Código: ${estadoNavegacion.codigo}). Me gustaría obtener más información.`
+        : `Hola, estoy interesado en el producto "${estadoNavegacion.producto}". Me gustaría obtener más información.`;
+
+      setFormData(prev => ({
+        ...prev,
+        mensaje: mensajeProducto
+      }));
+
+      // Limpiar el state de navegación para evitar que persista al recargar
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;

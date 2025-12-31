@@ -50,11 +50,51 @@ const VerProductos: React.FC = () => {
 
   const productsPerPage = 10;
 
+  // Función recursiva para aplanar categorías con indentación notoria
+  const flattenCategories = (categories: any[], level: number = 0): Array<{id: number, displayName: string, isAbuelo: boolean, level: number}> => {
+    let result: Array<{id: number, displayName: string, isAbuelo: boolean, level: number}> = [];
+
+    categories.forEach(cat => {
+      const isAbuelo = level === 0; // Nivel 0 = Abuelo (NO seleccionable)
+      const isPadre = level === 1;  // Nivel 1 = Padre
+      const isHijo = level === 2;   // Nivel 2 = Hijo
+
+      // Indentación notoria con guiones medios
+      let displayName = '';
+
+      if (isAbuelo) {
+        // Abuelo: Mayúsculas, sin indentación
+        displayName = `${cat.nombre.toUpperCase()}`;
+      } else if (isPadre) {
+        // Padre: Indentación visible con guiones
+        displayName = `---- ${cat.nombre}`;
+      } else if (isHijo) {
+        // Hijo: Mayor indentación con más guiones
+        displayName = `-------- ${cat.nombre}`;
+      }
+
+      result.push({
+        id: cat.id,
+        displayName: displayName,
+        isAbuelo: isAbuelo,
+        level: level
+      });
+
+      // Recursión para hijos (máximo 3 niveles, level va de 0 a 2)
+      if (cat.children && cat.children.length > 0 && level < 2) {
+        result = result.concat(flattenCategories(cat.children, level + 1));
+      }
+    });
+
+    return result;
+  };
+
   // ✅ NUEVO: Cargar categorías al montar el componente
   useEffect(() => {
     const loadCategorias = async () => {
       try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/categorias.php?action=list`, {
+        // Usar endpoint tree en lugar de list
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/categorias.php?action=tree`, {
           method: 'GET',
           credentials: 'include',
           headers: {
@@ -62,16 +102,16 @@ const VerProductos: React.FC = () => {
             'Content-Type': 'application/json'
           }
         });
-        
+
         const result = await response.json();
         if (result.success && result.data) {
-          setCategorias(result.data.categorias || []);
+          setCategorias(result.data.tree || []);
         }
       } catch (error) {
         console.error('Error cargando categorías:', error);
       }
     };
-    
+
     loadCategorias();
   }, []);
 
@@ -512,7 +552,7 @@ const VerProductos: React.FC = () => {
                   <label htmlFor="categoria-filtro" className="text-sm text-gray-600">
                     Categoría:
                   </label>
-                  <select 
+                  <select
                     value={categoriaFiltro}
                     onChange={(e) => {
                       setCategoriaFiltro(e.target.value);
@@ -521,23 +561,32 @@ const VerProductos: React.FC = () => {
                     className="border rounded px-3 py-2"
                   >
                     <option value="">Todas las categorías</option>
-                    {categorias
-                      .filter(cat => !cat.parent_id) // Solo padres primero
-                      .map((padre) => (
-                        <React.Fragment key={padre.id}>
-                          <option value={padre.id}>
-                            {padre.nombre}
-                          </option>
-                          {/* Mostrar hijos indentados */}
-                          {categorias
-                            .filter(hijo => hijo.parent_id === padre.id)
-                            .map(hijo => (
-                              <option key={hijo.id} value={hijo.id}>
-                                &nbsp;&nbsp;↳ {hijo.nombre}
-                              </option>
-                            ))}
-                        </React.Fragment>
-                      ))}
+                    {flattenCategories(categorias).map((cat) => {
+                      // Clases CSS según nivel para mejor visualización
+                      let optionClass = '';
+                      if (cat.isAbuelo) {
+                        optionClass = 'font-bold text-gray-600 bg-gray-100';
+                      } else if (cat.level === 1) {
+                        optionClass = 'font-medium text-gray-800';
+                      } else if (cat.level === 2) {
+                        optionClass = 'text-gray-700';
+                      }
+
+                      return (
+                        <option
+                          key={cat.id}
+                          value={cat.isAbuelo ? "" : cat.id}
+                          disabled={cat.isAbuelo}
+                          className={optionClass}
+                          style={{
+                            fontWeight: cat.isAbuelo ? 'bold' : cat.level === 1 ? '600' : 'normal',
+                            color: cat.isAbuelo ? '#9ca3af' : cat.level === 1 ? '#1f2937' : '#4b5563'
+                          }}
+                        >
+                          {cat.displayName}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 

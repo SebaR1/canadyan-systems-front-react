@@ -355,40 +355,56 @@ const Header: React.FC = () => {
                 
                 {/* Dropdown CATÁLOGO - Categorías dinámicas */}
                 {desktopDropdown === 'catalogo' && (
-                  <div className="absolute top-full left-0 mt-1 w-56 bg-black text-white rounded-md shadow-lg z-50">
+                  <div className="absolute top-full left-0 mt-1 w-64 bg-black text-white rounded-md shadow-lg z-50">
                     <div className="py-2">
                       {loadingCategorias ? (
                         <div className="px-4 py-2 text-gray-400 text-sm">Cargando categorías...</div>
                       ) : categorias.length > 0 ? (
-                        // Mostrar categorías principales (nivel 1) y sus hijas (nivel 2)
-                        categorias.map((categoria) => (
-                          <div key={categoria.id}>
-                            {/* Categoría principal */}
-                            <button 
-                              className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors uppercase font-semibold"
-                              onClick={() => {
-                                handleCategoryNavigation(categoria.id, categoria.nombre, categoria.slug);
-                                setDesktopDropdown(null);
-                              }}
-                            >
-                              {categoria.nombre}
-                            </button>
-                            
-                            {/* Subcategorías (nivel 2) - con indentación */}
-                            {categoria.children && categoria.children.length > 0 && (
+                        categorias.map((abuelo) => (
+                          <div key={abuelo.id} className="mb-2">
+                            {/* ABUELO - Solo texto, NO clickeable */}
+                            <div className="px-4 py-2 text-gray-500 text-xs font-semibold uppercase">
+                              {abuelo.nombre}
+                            </div>
+
+                            {/* PADRES (hijos del abuelo) */}
+                            {abuelo.children && abuelo.children.length > 0 && (
                               <div className="ml-2">
-                                {categoria.children.map((subcategoria) => (
-                                  <button 
-                                    key={subcategoria.id}
-                                    className="block w-full text-left px-4 py-1 hover:bg-gray-700 transition-colors text-sm text-gray-300"
-                                    onClick={() => {
-                                      // Para subcategorías necesitamos tanto el padre como la subcategoría
-                                      handleCategoryNavigation(subcategoria.id, subcategoria.nombre, `${categoria.slug}/${subcategoria.slug}`);
-                                      setDesktopDropdown(null);
-                                    }}
-                                  >
-                                    {subcategoria.nombre}
-                                  </button>
+                                {abuelo.children.map((padre) => (
+                                  <div key={padre.id}>
+                                    {/* Botón del padre - SÍ clickeable */}
+                                    <button
+                                      className="block w-full text-left px-4 py-1.5 hover:bg-gray-700 transition-colors text-sm text-white"
+                                      onClick={() => {
+                                        handleCategoryNavigation(padre.id, padre.nombre, padre.slug);
+                                        setDesktopDropdown(null);
+                                      }}
+                                    >
+                                      {padre.nombre}
+                                    </button>
+
+                                    {/* HIJOS (hijos del padre) */}
+                                    {padre.children && padre.children.length > 0 && (
+                                      <div className="ml-4">
+                                        {padre.children.map((hijo) => (
+                                          <button
+                                            key={hijo.id}
+                                            className="block w-full text-left px-4 py-1 hover:bg-gray-700 transition-colors text-xs text-gray-300"
+                                            onClick={() => {
+                                              handleCategoryNavigation(
+                                                hijo.id,
+                                                hijo.nombre,
+                                                `${padre.slug}/${hijo.slug}`
+                                              );
+                                              setDesktopDropdown(null);
+                                            }}
+                                          >
+                                            • {hijo.nombre}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
                                 ))}
                               </div>
                             )}
@@ -578,54 +594,70 @@ const Header: React.FC = () => {
             
             {/* Subcategorías de CATÁLOGO - Dinámicas */}
             {expandedCategory === 'catalogo' && (
-              <div className="ml-4 mt-2 space-y-1">
+              <div className="ml-4 mt-2 space-y-2">
                 {loadingCategorias ? (
                   <div className="py-2 px-2 text-sm text-gray-400">Cargando categorías...</div>
                 ) : categorias.length > 0 ? (
-                  categorias.map((categoria) => (
-                    <div key={categoria.id}>
-                      {/* Categoría principal - Expandible si tiene hijos */}
-                      <div>
-                        <button 
-                          className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors flex items-center justify-between"
-                          onClick={() => {
-                            if (categoria.children && categoria.children.length > 0) {
-                              toggleSubCategory(`categoria-${categoria.id}`);
-                            } else {
-                              handleCategoryNavigation(categoria.id, categoria.nombre, categoria.slug);
-                            }
-                          }}
-                        >
-                          <span className="uppercase">{categoria.nombre}</span>
-                          {categoria.children && categoria.children.length > 0 && (
-                            <svg 
-                              className={`w-3 h-3 transition-transform duration-200 ${
-                                expandedSubCategory === `categoria-${categoria.id}` ? 'rotate-180' : ''
-                              }`} 
-                              fill="none" 
-                              stroke="currentColor" 
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                          )}
-                        </button>
-                        
-                        {/* Subcategorías nivel 2 */}
-                        {expandedSubCategory === `categoria-${categoria.id}` && categoria.children && (
-                          <div className="ml-4 mt-1 space-y-1">
-                            {categoria.children.map((subcategoria) => (
-                              <button 
-                                key={subcategoria.id}
-                                className="w-full text-left py-1.5 px-2 text-xs text-gray-300 hover:bg-gray-400 rounded transition-colors"
-                                onClick={() => handleCategoryNavigation(subcategoria.id, subcategoria.nombre, `${categoria.slug}/${subcategoria.slug}`)}
-                              >
-                                {subcategoria.nombre}
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                  categorias.map((abuelo) => (
+                    <div key={abuelo.id} className="mb-3">
+                      {/* ABUELO - Solo texto, NO clickeable */}
+                      <div className="px-2 py-1 text-gray-400 text-xs font-semibold uppercase">
+                        {abuelo.nombre}
                       </div>
+
+                      {/* PADRES (hijos del abuelo) */}
+                      {abuelo.children && abuelo.children.length > 0 && (
+                        <div className="ml-2 mt-1 space-y-1">
+                          {abuelo.children.map((padre) => (
+                            <div key={padre.id}>
+                              {/* Botón del padre */}
+                              <button
+                                className="w-full text-left py-1.5 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors flex items-center justify-between"
+                                onClick={() => {
+                                  if (padre.children && padre.children.length > 0) {
+                                    toggleSubCategory(`categoria-${padre.id}`);
+                                  } else {
+                                    handleCategoryNavigation(padre.id, padre.nombre, padre.slug);
+                                  }
+                                }}
+                              >
+                                <span>{padre.nombre}</span>
+                                {padre.children && padre.children.length > 0 && (
+                                  <svg
+                                    className={`w-3 h-3 transition-transform duration-200 ${
+                                      expandedSubCategory === `categoria-${padre.id}` ? 'rotate-180' : ''
+                                    }`}
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                )}
+                              </button>
+
+                              {/* HIJOS (hijos del padre) */}
+                              {expandedSubCategory === `categoria-${padre.id}` && padre.children && (
+                                <div className="ml-4 mt-1 space-y-1">
+                                  {padre.children.map((hijo) => (
+                                    <button
+                                      key={hijo.id}
+                                      className="w-full text-left py-1 px-2 text-xs text-gray-300 hover:bg-gray-400 rounded transition-colors"
+                                      onClick={() => handleCategoryNavigation(
+                                        hijo.id,
+                                        hijo.nombre,
+                                        `${padre.slug}/${hijo.slug}`
+                                      )}
+                                    >
+                                      • {hijo.nombre}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))
                 ) : (

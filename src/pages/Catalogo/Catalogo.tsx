@@ -28,6 +28,7 @@ const Catalogo: React.FC = () => {
     nombre: string;
     parent_id: number | null;
     padre_nombre?: string;
+    abuelo_nombre?: string;  // NUEVO: Para mostrar en breadcrumb
   } | null>(null);
 
   // NUEVOS ESTADOS para subcategorías
@@ -51,6 +52,9 @@ const Catalogo: React.FC = () => {
   const [primeraVez, setPrimeraVez] = useState(true);
 
   const observerTarget = useRef<HTMLDivElement>(null);
+
+  // ✅ NUEVO: Trackear estado previo de filtros para detectar cuando se limpian
+  const filtrosPreviosRef = useRef<boolean>(false);
 
   // FUNCIÓN HELPER PARA FORMATEAR PRECIO
   const formatearPrecio = (precio: any): string => {
@@ -235,17 +239,41 @@ const Catalogo: React.FC = () => {
       // CASO 3: Por categoría
       else if (categoriaActual) {
         const offset = (nextPage - 1) * PRODUCTOS_POR_PAGINA;
-        
-        response = await apiManager.productos.obtenerPorCategoria(
-          categoriaActual.id,
-          { offset: offset, limit: PRODUCTOS_POR_PAGINA }
-        );
-        
-        if (response.success && response.data) {
-          const nuevosProductos = response.data.productos || [];
+
+        // ¿Estamos en PADRE con hijos mostrando dropdown?
+        if (subcategorias.length > 0 && !subcategoriaSeleccionada) {
+          // Modo: PADRE con hijos - cargar de TODAS las subcategorías
+          const productosPromises = subcategorias.map(hijo =>
+            apiManager.productos.obtenerPorCategoria(hijo.id, {
+              offset: offset,
+              limit: PRODUCTOS_POR_PAGINA
+            })
+          );
+          const responses = await Promise.all(productosPromises);
+
+          let nuevosProductos: Producto[] = [];
+          for (const res of responses) {
+            if (res.success && res.data) {
+              nuevosProductos.push(...(res.data.productos || []));
+            }
+          }
+
           setProductos(prev => [...prev, ...nuevosProductos]);
           setCurrentPage(nextPage);
           setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
+        } else {
+          // Modo normal: Una sola categoría
+          response = await apiManager.productos.obtenerPorCategoria(
+            categoriaActual.id,
+            { offset: offset, limit: PRODUCTOS_POR_PAGINA }
+          );
+
+          if (response.success && response.data) {
+            const nuevosProductos = response.data.productos || [];
+            setProductos(prev => [...prev, ...nuevosProductos]);
+            setCurrentPage(nextPage);
+            setHasMore(nuevosProductos.length >= PRODUCTOS_POR_PAGINA);
+          }
         }
       }
       // CASO 4: Todos los productos
@@ -270,7 +298,7 @@ const Catalogo: React.FC = () => {
     } finally {
       setLoadingMore(false);
     }
-  }, [currentPage, loadingMore, hasMore, terminoBusqueda, categoriaActual, getFiltrosActivos]);
+  }, [currentPage, loadingMore, hasMore, terminoBusqueda, categoriaActual, getFiltrosActivos, subcategorias, subcategoriaSeleccionada]);
 
   useEffect(() => {
     if (!hasMore || loadingMore || loading) {
@@ -362,20 +390,33 @@ const Catalogo: React.FC = () => {
           if (categoriaResponse.success && categoriaResponse.data) {
             const categoria = categoriaResponse.data.categoria;
             
-            // Obtener nombre del padre si existe
+            // Obtener nombre del padre y abuelo si existen
             let padre_nombre = undefined;
+            let abuelo_nombre = undefined;
+
             if (categoria.parent_id) {
               const padreResponse = await apiManager.categorias.obtenerPorId(categoria.parent_id);
               if (padreResponse.success && padreResponse.data) {
-                padre_nombre = padreResponse.data.categoria.nombre;            
+                const padre = padreResponse.data.categoria;
+                padre_nombre = padre.nombre;
+
+                // Si el padre tiene parent_id, entonces la categoría actual es hijo (nivel 3)
+                // y su padre es el abuelo (nivel 1)
+                if (padre.parent_id) {
+                  const abueloResponse = await apiManager.categorias.obtenerPorId(padre.parent_id);
+                  if (abueloResponse.success && abueloResponse.data) {
+                    abuelo_nombre = abueloResponse.data.categoria.nombre;
+                  }
+                }
               }
             }
-            
+
             setCategoriaActual({
               id: categoria.id,
               nombre: categoria.nombre,
               parent_id: categoria.parent_id,
-              padre_nombre: padre_nombre
+              padre_nombre: padre_nombre,
+              abuelo_nombre: abuelo_nombre  // NUEVO
             });
 
             // Cargar subcategorías si es necesario
@@ -390,8 +431,8 @@ const Catalogo: React.FC = () => {
                 
                 // Cargar productos de todas las subcategorías
                 if (subs.length > 0) {
-                  const productosPromises = subs.map(sub => 
-                    apiManager.productos.obtenerPorCategoria(sub.id, { limit: 999 })
+                  const productosPromises = subs.map(sub =>
+                    apiManager.productos.obtenerPorCategoria(sub.id, { limit: 9999 })
                   );
                   const productosResponses = await Promise.all(productosPromises);
                   
@@ -400,6 +441,12 @@ const Catalogo: React.FC = () => {
                       productos.push(...(prodResponse.data.productos || []));
                     }
                   }
+
+                  // Eliminar duplicados basándose en el ID del producto
+                  const productosUnicos = Array.from(
+                    new Map(productos.map(p => [p.id, p])).values()
+                  );
+                  productos = productosUnicos;
                 } else {
                   // Si no hay subcategorías, cargar productos de la categoría padre
                   const productosResponse = await apiManager.productos.obtenerPorCategoria(
@@ -414,23 +461,83 @@ const Catalogo: React.FC = () => {
               setSubcategoriaSeleccionada(null);
               
             } else {
-              // Es subcategoría - cargar subcategorías del padre
-              const subcategoriasResponse = await apiManager.categorias.listar();
-              if (subcategoriasResponse.success && subcategoriasResponse.data) {
-                const subs = subcategoriasResponse.data.categorias.filter(
-                  (cat: Categoria) => Number(cat.parent_id) === Number(categoria.parent_id)
+              // Es categoría con parent_id (padre o hijo)
+              const categoriasResponse = await apiManager.categorias.listar();
+              if (categoriasResponse.success && categoriasResponse.data) {
+                // Primero verificar si esta categoría tiene hijos (es un PADRE)
+                const hijos = categoriasResponse.data.categorias.filter(
+                  (cat: Categoria) => Number(cat.parent_id) === Number(categoria.id)
                 );
-                setSubcategorias(subs);
-              }
-              setSubcategoriaSeleccionada(categoria.id);
-              
-              // Cargar productos de esta subcategoría específica
-              const productosResponse = await apiManager.productos.obtenerPorCategoria(
-                categoria.id,
-                { offset: 0, limit: PRODUCTOS_POR_PAGINA }
-              );
-              if (productosResponse.success && productosResponse.data) {
-                productos = productosResponse.data.productos || [];
+
+                if (hijos.length > 0) {
+                  // Es un PADRE con hijos - mostrar dropdown con hijos
+                  console.log('🔵 PADRE CON HIJOS detectado:', categoria.nombre);
+                  console.log('🔵 Cantidad de hijos:', hijos.length, hijos.map(h => h.nombre));
+                  setSubcategorias(hijos);
+                  setSubcategoriaSeleccionada(null);
+
+                  // Cargar PRIMERA PÁGINA de productos de todos los hijos
+                  const productosPromises = hijos.map(hijo =>
+                    apiManager.productos.obtenerPorCategoria(hijo.id, { offset: 0, limit: PRODUCTOS_POR_PAGINA })
+                  );
+                  console.log('🔵 Solicitando productos de', hijos.length, 'categorías hijas...');
+                  const productosResponses = await Promise.all(productosPromises);
+                  console.log('🔵 Respuestas recibidas:', productosResponses.length);
+
+                  for (const prodResponse of productosResponses) {
+                    if (prodResponse.success && prodResponse.data) {
+                      const prods = prodResponse.data.productos || [];
+                      console.log('🔵 Productos de una categoría hija:', prods.length);
+                      productos.push(...prods);
+                    }
+                  }
+
+                  // Eliminar duplicados basándose en el ID del producto
+                  const productosUnicos = Array.from(
+                    new Map(productos.map(p => [p.id, p])).values()
+                  );
+                  productos = productosUnicos;
+
+                  console.log('🔵 TOTAL productos acumulados (sin duplicados):', productos.length);
+                } else {
+                  // NO tiene hijos - verificar si es PADRE SIN HIJOS o HIJO
+                  // Si tiene abuelo_nombre, es un HIJO
+                  // Si NO tiene abuelo_nombre, es un PADRE SIN HIJOS
+
+                  if (abuelo_nombre) {
+                    // Es un HIJO (tiene abuelo) - mostrar dropdown con hermanos
+                    console.log('🟢 HIJO detectado:', categoria.nombre, 'con abuelo:', abuelo_nombre);
+                    const hermanos = categoriasResponse.data.categorias.filter(
+                      (cat: Categoria) => Number(cat.parent_id) === Number(categoria.parent_id)
+                    );
+
+                    setSubcategorias(hermanos);
+                    setSubcategoriaSeleccionada(categoria.id);
+
+                    // Cargar solo productos de esta categoría (el hijo actual)
+                    const productosResponse = await apiManager.productos.obtenerPorCategoria(
+                      categoria.id,
+                      { offset: 0, limit: PRODUCTOS_POR_PAGINA }
+                    );
+                    if (productosResponse.success && productosResponse.data) {
+                      productos = productosResponse.data.productos || [];
+                    }
+                  } else {
+                    // Es un PADRE SIN HIJOS - NO mostrar dropdown
+                    console.log('🟠 PADRE SIN HIJOS detectado:', categoria.nombre);
+                    setSubcategorias([]);
+                    setSubcategoriaSeleccionada(null);
+
+                    // Cargar productos directamente de esta categoría
+                    const productosResponse = await apiManager.productos.obtenerPorCategoria(
+                      categoria.id,
+                      { offset: 0, limit: PRODUCTOS_POR_PAGINA }
+                    );
+                    if (productosResponse.success && productosResponse.data) {
+                      productos = productosResponse.data.productos || [];
+                    }
+                  }
+                }
               }
             }
           }
@@ -447,7 +554,9 @@ const Catalogo: React.FC = () => {
           }
         }
 
+        console.log('✅ ANTES de setProductos - productos.length:', productos.length);
         setProductos(productos);
+        console.log('✅ DESPUÉS de setProductos - llamado con:', productos.length, 'productos');
         setCurrentPage(1);
         setHasMore(productos.length >= PRODUCTOS_POR_PAGINA);
         setTotalProductos(productos.length);
@@ -529,51 +638,63 @@ const Catalogo: React.FC = () => {
   }, [categoriaSlug, subcategoriaSlug, searchParams, terminoBusqueda]); // ← Agregada dependencia
 
   const recargarProductosOriginales = useCallback(async () => {
+    console.log('🔄 recargarProductosOriginales INICIANDO...');
+    console.log('🔄 Estado: subcategorias.length =', subcategorias.length, 'subcategoriaSeleccionada =', subcategoriaSeleccionada, 'categoriaActual.abuelo_nombre =', categoriaActual?.abuelo_nombre);
+
     let productos: Producto[] = [];
     const categoriaId = searchParams.get('categoria') || (categoriaActual?.id.toString());
-    
+
     if (categoriaId && categoriaActual) {
-      if (!categoriaActual.parent_id) {
-        // Es categoría padre - cargar productos según si tiene subcategorías
-        if (subcategorias.length > 0) {
-          // Cargar productos de todas las subcategorías
-          const productosPromises = subcategorias.map(sub => 
-            apiManager.productos.obtenerPorCategoria(sub.id, { limit: 999 })
-          );
-          const productosResponses = await Promise.all(productosPromises);
-          
-          for (const prodResponse of productosResponses) {
-            if (prodResponse.success && prodResponse.data) {
-              productos.push(...(prodResponse.data.productos || []));
-            }
-          }
-        } else {
-          // Sin subcategorías, cargar productos directos
-          const productosResponse = await apiManager.productos.obtenerPorCategoria(
-            parseInt(categoriaId), 
-            { limit: 999 }
-          );
-          if (productosResponse.success && productosResponse.data) {
-            productos = productosResponse.data.productos || [];
+      // CASO 1: PADRE CON HIJOS (subcategorias.length > 0 Y subcategoriaSeleccionada === null)
+      if (subcategorias.length > 0 && subcategoriaSeleccionada === null) {
+        console.log('🔵 CASO 1: PADRE CON HIJOS - Cargando de TODAS las subcategorías');
+        // Cargar de TODAS las subcategorías
+        const productosPromises = subcategorias.map(sub =>
+          apiManager.productos.obtenerPorCategoria(sub.id, { limit: 9999 })
+        );
+        const productosResponses = await Promise.all(productosPromises);
+
+        for (const prodResponse of productosResponses) {
+          if (prodResponse.success && prodResponse.data) {
+            productos.push(...(prodResponse.data.productos || []));
           }
         }
-      } else {
-        // Es subcategoría
+        console.log('🔵 CASO 1: Cargados', productos.length, 'productos de', subcategorias.length, 'subcategorías');
+      }
+      // CASO 2: HIJO (tiene abuelo_nombre)
+      else if (categoriaActual.abuelo_nombre) {
+        console.log('🟢 CASO 2: HIJO - Cargando solo de esta categoría');
+        // Cargar solo de esta categoría
         const productosResponse = await apiManager.productos.obtenerPorCategoria(
-          parseInt(categoriaId), 
-          { limit: 999 }
+          parseInt(categoriaId),
+          { limit: 9999 }
         );
         if (productosResponse.success && productosResponse.data) {
           productos = productosResponse.data.productos || [];
         }
+        console.log('🟢 CASO 2: Cargados', productos.length, 'productos');
+      }
+      // CASO 3: PADRE SIN HIJOS (NO tiene abuelo_nombre Y subcategorias.length === 0)
+      else {
+        console.log('🟠 CASO 3: PADRE SIN HIJOS - Cargando solo de esta categoría');
+        // Cargar solo de esta categoría
+        const productosResponse = await apiManager.productos.obtenerPorCategoria(
+          parseInt(categoriaId),
+          { limit: 9999 }
+        );
+        if (productosResponse.success && productosResponse.data) {
+          productos = productosResponse.data.productos || [];
+        }
+        console.log('🟠 CASO 3: Cargados', productos.length, 'productos');
       }
     }
-    
+
+    console.log('🔄 recargarProductosOriginales COMPLETADO - Total productos:', productos.length);
     setProductos(productos);
     setCurrentPage(1);
     setHasMore(productos.length >= PRODUCTOS_POR_PAGINA);
     setTotalProductos(productos.length);
-  }, [searchParams, categoriaActual, subcategorias]);
+  }, [searchParams, categoriaActual, subcategorias, subcategoriaSeleccionada]);
 
 // Reemplazar el useEffect de filtros en src/pages/Catalogo/Catalogo.tsx
 // (el que tiene el comentario "✅ MODIFICADO: Solo aplicar filtros si NO estamos en modo búsqueda")
@@ -586,122 +707,107 @@ useEffect(() => {
 
   // ✅ No ejecutar durante la carga inicial
   if (loading) {
+    console.log('⚠️ useEffect FILTROS: Bloqueado por loading=true');
     return;
   }
 
-  // ✅ Solo aplicar filtros si hay filtros ACTIVOS
+  // ✅ Detectar estado de filtros
   const filtrosActivos = getFiltrosActivos();
   const hayFiltrosActivos = Object.keys(filtrosActivos).length > 0;
-  
-  // ✅ NUEVO: Solo ejecutar si cambiaron los filtros (no en la primera carga)
+  const teniamosFilrosPrevios = filtrosPreviosRef.current;
+
+  console.log('🟡 useEffect FILTROS - hayFiltrosActivos:', hayFiltrosActivos, 'teniamosFilrosPrevios:', teniamosFilrosPrevios, 'primeraVez:', primeraVez);
+
+  // ✅ CASO 1: Primera carga sin filtros → NO hacer nada
   if (!hayFiltrosActivos && primeraVez) {
+    console.log('⚠️ useEffect FILTROS: Primera carga sin filtros - bloqueado');
     setPrimeraVez(false);
+    filtrosPreviosRef.current = false;
     return;
   }
 
-  const applyFilters = async () => {
-    setLoadingProductos(true);
-    
-    // Determinar qué categoría usar para filtrar
-    let categoriaParaFiltros: number | undefined;
-    
-    if (categoriaActual) {
-      categoriaParaFiltros = categoriaActual.id;
-    }
-    
-    if (hayFiltrosActivos) {
-      // CON filtros activos
+  // ✅ CASO 2: Usuario tenía filtros y los quitó TODOS → Recargar productos originales y filtros
+  if (!hayFiltrosActivos && teniamosFilrosPrevios) {
+    console.log('🔄 useEffect FILTROS: Usuario quitó todos los filtros - recargando productos originales...');
+
+    const recargarTodo = async () => {
+      setLoadingProductos(true);
+
+      // Recargar productos originales
+      await recargarProductosOriginales();
+
+      // Recargar filtros dinámicos SIN filtros aplicados
+      if (categoriaActual) {
+        const filtrosDinamicosResponse = await apiManager.atributos.obtenerFiltrosDinamicos(
+          categoriaActual.id,
+          {} // Sin filtros
+        );
+
+        if (filtrosDinamicosResponse.success && filtrosDinamicosResponse.data) {
+          setAtributos(filtrosDinamicosResponse.data.filtros);
+        }
+      }
+
+      setLoadingProductos(false);
+    };
+
+    recargarTodo();
+    filtrosPreviosRef.current = false;
+    return;
+  }
+
+  // ✅ CASO 3: Usuario tiene filtros activos → Aplicar filtros
+  if (hayFiltrosActivos) {
+    console.log('🟡 useEffect FILTROS: Aplicando filtros activos...');
+
+    const applyFilters = async () => {
+      setLoadingProductos(true);
+
+      // Determinar qué categoría usar para filtrar
+      let categoriaParaFiltros: number | undefined;
+
+      if (categoriaActual) {
+        categoriaParaFiltros = categoriaActual.id;
+      }
+
+      // Aplicar filtros via API
+      console.log('🟡 applyFilters: Llamando API con filtros...');
       const response = await apiManager.atributos.filtrarProductosSimple(
-        filtrosActivos, 
-        1, 
-        50, 
+        filtrosActivos,
+        1,
+        50,
         categoriaParaFiltros
       );
-      
+
       if (response.success && response.data) {
+        console.log('🟡 applyFilters: Respuesta con filtros - productos:', response.data.productos.length);
         setProductos(response.data.productos);
         setCurrentPage(1);
         setHasMore(response.data.productos.length >= PRODUCTOS_POR_PAGINA);
       }
-      
+
       // Actualizar filtros dinámicos
       const filtrosDinamicosResponse = await apiManager.atributos.obtenerFiltrosDinamicos(
         categoriaParaFiltros,
         filtrosActivos
       );
-            
+
       if (filtrosDinamicosResponse.success && filtrosDinamicosResponse.data) {
         setAtributos(filtrosDinamicosResponse.data.filtros);
       }
-    } else {
-      // ✅ CORREGIDO: SIN filtros activos - RECARGAR TODO
-      
-      // 1. Recargar productos originales (INLINE para evitar loop)
-      let productos: Producto[] = [];
-      const categoriaId = searchParams.get('categoria') || (categoriaActual?.id.toString());
-      
-      if (categoriaId && categoriaActual) {
-        if (!categoriaActual.parent_id) {
-          // Es categoría padre - cargar productos según si tiene subcategorías
-          if (subcategorias.length > 0) {
-            // Cargar productos de todas las subcategorías
-            const productosPromises = subcategorias.map(sub => 
-              apiManager.productos.obtenerPorCategoria(sub.id, { limit: 999 })
-            );
-            const productosResponses = await Promise.all(productosPromises);
-            
-            for (const prodResponse of productosResponses) {
-              if (prodResponse.success && prodResponse.data) {
-                productos.push(...(prodResponse.data.productos || []));
-              }
-            }
-          } else {
-            // Sin subcategorías, cargar productos directos
-            const productosResponse = await apiManager.productos.obtenerPorCategoria(
-              parseInt(categoriaId), 
-              { limit: 999 }
-            );
-            if (productosResponse.success && productosResponse.data) {
-              productos = productosResponse.data.productos || [];
-            }
-          }
-        } else {
-          // Es subcategoría
-          const productosResponse = await apiManager.productos.obtenerPorCategoria(
-            parseInt(categoriaId), 
-            { limit: 999 }
-          );
-          if (productosResponse.success && productosResponse.data) {
-            productos = productosResponse.data.productos || [];
-          }
-        }
-      }
-      
-      setProductos(productos);
-      setCurrentPage(1);
-      setHasMore(productos.length >= PRODUCTOS_POR_PAGINA);
-      setTotalProductos(productos.length);
-      
-      // 2. Recargar TODOS los atributos disponibles (sin filtros)
-      const filtrosResponse = await apiManager.atributos.obtenerFiltros(categoriaParaFiltros);
-      
-      if (filtrosResponse.success && filtrosResponse.data) {
-        const atributosData = filtrosResponse.data.filtros;
-        setAtributos(atributosData);
-        
-        // ✅ CRÍTICO: NO actualizar filters aquí, ya están todos en false
-        // Solo actualizar atributos para que se muestren todos los disponibles
-      }
-    }
-    
-    setLoadingProductos(false);
-  };
-  
-  // Solo ejecutar si hay filtros o si ya pasó la primera vez
-  if (hayFiltrosActivos || !primeraVez) {
+
+      setLoadingProductos(false);
+    };
+
     applyFilters();
+    filtrosPreviosRef.current = true;
+    return;
   }
-}, [filters, categoriaActual, terminoBusqueda, loading, primeraVez, getFiltrosActivos, searchParams, subcategorias]);
+
+  // ✅ CASO 4: Sin filtros activos y sin filtros previos → NO hacer nada (navegación normal)
+  console.log('⚠️ useEffect FILTROS: Sin filtros activos ni previos - no hacer nada');
+  filtrosPreviosRef.current = false;
+}, [filters, categoriaActual, terminoBusqueda, loading, primeraVez, getFiltrosActivos, searchParams, recargarProductosOriginales]);
   const handleFilterChange = (atributoId: string, valor: string) => {
     setFilters(prev => ({
       ...prev,
@@ -801,20 +907,28 @@ useEffect(() => {
                 /* Mostrar jerarquía de categorías en modo normal */
                 categoriaActual && (
                   <>
-                    {/* Si tiene padre, mostrarlo como LINK navegable */}
+                    {/* ABUELO (si existe) - Solo texto, NO link */}
+                    {categoriaActual.abuelo_nombre && (
+                      <>
+                        <span>&gt;</span>
+                        <span className="text-gray-600">{categoriaActual.abuelo_nombre}</span>
+                      </>
+                    )}
+
+                    {/* PADRE (si existe y estamos en hijo) - Link navegable */}
                     {categoriaActual.parent_id && categoriaActual.padre_nombre && (
                       <>
                         <span>&gt;</span>
-                        <Link 
-                          to={`/catalogo?categoria=${categoriaActual.parent_id}&nombre=${encodeURIComponent(categoriaActual.padre_nombre)}`}
+                        <Link
+                          to={`/catalogo/${categoriaSlug}`}
                           className="hover:text-orange-500 transition-colors"
                         >
                           {categoriaActual.padre_nombre}
                         </Link>
                       </>
                     )}
-                    
-                    {/* Mostrar la categoría actual como TEXTO (no navegable porque ya estás ahí) */}
+
+                    {/* CATEGORÍA ACTUAL - No clickeable */}
                     <span>&gt;</span>
                     <span className="text-gray-900 font-medium">
                       {categoriaActual.nombre}
@@ -956,6 +1070,10 @@ useEffect(() => {
               </div>
 
               {/* Grid de productos */}
+              {(() => {
+                console.log('🎨 RENDER - loadingProductos:', loadingProductos, 'productos.length:', productos.length, 'terminoBusqueda:', terminoBusqueda);
+                return null;
+              })()}
               {loadingProductos ? (
                 <div className="flex items-center justify-center h-64">
                   <div className="text-center">

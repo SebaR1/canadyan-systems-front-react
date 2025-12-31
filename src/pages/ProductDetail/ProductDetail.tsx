@@ -11,6 +11,8 @@ interface CategoriaInfo {
   nombre: string;
   parent_id?: number | null;
   padre_nombre?: string;
+  padre_id?: number | null;
+  abuelo_nombre?: string;
 }
 
 const ProductDetail: React.FC = () => {
@@ -27,6 +29,7 @@ const ProductDetail: React.FC = () => {
   const [imagenes, setImagenes] = useState<any[]>([]);
   const [imagenActual, setImagenActual] = useState(0);
   const [loadingImagenes, setLoadingImagenes] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
 
   useEffect(() => {
     if (!id || !Number.isInteger(Number(id))) {
@@ -107,21 +110,36 @@ const ProductDetail: React.FC = () => {
       const response = await apiManager.categorias.obtenerPorId(categoriaId);
       if (response.success && response.data) {
         const categoria = response.data.categoria;
-        
+
         // Si tiene padre, cargar también la información del padre
         let padre_nombre = undefined;
+        let padre_id = undefined;
+        let abuelo_nombre = undefined;
+
         if (categoria.parent_id) {
           const padreResponse = await apiManager.categorias.obtenerPorId(categoria.parent_id);
           if (padreResponse.success && padreResponse.data) {
-            padre_nombre = padreResponse.data.categoria.nombre;
+            const padre = padreResponse.data.categoria;
+            padre_nombre = padre.nombre;
+            padre_id = padre.id;
+
+            // Si el padre tiene padre (abuelo), cargarlo también
+            if (padre.parent_id) {
+              const abueloResponse = await apiManager.categorias.obtenerPorId(padre.parent_id);
+              if (abueloResponse.success && abueloResponse.data) {
+                abuelo_nombre = abueloResponse.data.categoria.nombre;
+              }
+            }
           }
         }
-        
+
         setCategoriaInfo({
           id: categoria.id,
           nombre: categoria.nombre,
           parent_id: categoria.parent_id,
-          padre_nombre: padre_nombre
+          padre_nombre: padre_nombre,
+          padre_id: padre_id,
+          abuelo_nombre: abuelo_nombre
         });
       }
     } catch (err) {
@@ -201,44 +219,57 @@ const ProductDetail: React.FC = () => {
         <div className="max-w-7xl mx-auto py-4 px-4">
           
           {/* Breadcrumb */}
-          <nav className="mb-6">
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
-              <Link to="/" className="hover:text-orange-500 transition-colors">
+          <nav className="mb-6 overflow-x-auto">
+            <div className="flex items-center space-x-2 text-sm text-gray-600 flex-nowrap min-w-max">
+              <Link to="/" className="hover:text-orange-500 transition-colors whitespace-nowrap">
                 Inicio
               </Link>
-              <span>&gt;</span>
-              <Link to="/catalogo" className="hover:text-orange-500 transition-colors">
-                Catálogo
-              </Link>
-              
+              <span className="flex-shrink-0">&gt;</span>
+              <span className="whitespace-nowrap">Catálogo</span>
+
               {categoriaInfo && (
                 <>
-                  {/* Si tiene categoría padre */}
-                  {categoriaInfo.parent_id && categoriaInfo.padre_nombre && (
+                  {/* Abuelo (si existe) - NO clickeable */}
+                  {categoriaInfo.abuelo_nombre && (
                     <>
-                      <span>&gt;</span>
-                      <Link 
-                        to={`/catalogo?categoria=${categoriaInfo.parent_id}&nombre=${encodeURIComponent(categoriaInfo.padre_nombre)}`}
-                        className="hover:text-orange-500 transition-colors"
-                      >
-                        {categoriaInfo.padre_nombre}
-                      </Link>
+                      <span className="flex-shrink-0">&gt;</span>
+                      <span className="whitespace-nowrap">{categoriaInfo.abuelo_nombre}</span>
                     </>
                   )}
-                  
-                  {/* Categoría actual */}
-                  <span>&gt;</span>
-                  <Link 
+
+                  {/* Padre (si existe) - Determinar si es Abuelo o Padre real */}
+                  {categoriaInfo.parent_id && categoriaInfo.padre_nombre && (
+                    <>
+                      <span className="flex-shrink-0">&gt;</span>
+                      {/* Si NO hay abuelo, el "padre" es realmente el ABUELO → NO clickeable */}
+                      {!categoriaInfo.abuelo_nombre ? (
+                        <span className="whitespace-nowrap">{categoriaInfo.padre_nombre}</span>
+                      ) : (
+                        /* Si SÍ hay abuelo, entonces este es realmente el PADRE → Clickeable */
+                        <Link
+                          to={`/catalogo?categoria=${categoriaInfo.padre_id}&nombre=${encodeURIComponent(categoriaInfo.padre_nombre)}`}
+                          className="hover:text-orange-500 transition-colors whitespace-nowrap"
+                        >
+                          {categoriaInfo.padre_nombre}
+                        </Link>
+                      )}
+                    </>
+                  )}
+
+                  {/* Categoría actual - Clickeable */}
+                  <span className="flex-shrink-0">&gt;</span>
+                  <Link
                     to={`/catalogo?categoria=${categoriaInfo.id}&nombre=${encodeURIComponent(categoriaInfo.nombre)}`}
-                    className="hover:text-orange-500 transition-colors"
+                    className="hover:text-orange-500 transition-colors whitespace-nowrap"
                   >
                     {categoriaInfo.nombre}
                   </Link>
                 </>
               )}
-              
-              <span>&gt;</span>
-              <span className="text-gray-900 font-medium">
+
+              {/* Producto actual - NO clickeable */}
+              <span className="flex-shrink-0">&gt;</span>
+              <span className="text-gray-900 font-medium whitespace-nowrap">
                 {producto.nombre}
               </span>
             </div>
@@ -249,9 +280,9 @@ const ProductDetail: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               
           {/* Imagen del producto - MODIFICADO CON PLACEHOLDER */}
-          <div className="flex flex-col justify-center">
+          <div className="flex flex-col justify-center w-full">
             {/* Imagen Principal o Placeholder */}
-            <div className="w-full max-w-md">
+            <div className="w-full">
               {loadingImagenes ? (
                 <div className="bg-gray-50 rounded-2xl border-2 border-gray-300 p-6 flex items-center justify-center min-h-80">
                   <div className="animate-spin h-8 w-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
@@ -259,11 +290,11 @@ const ProductDetail: React.FC = () => {
               ) : imagenes.length === 0 ? (
                 <NoImagePlaceholder />
               ) : (
-                <div className="bg-gray-50 rounded-2xl border-2 border-gray-300 p-6 flex items-center justify-center min-h-80">
+                <div className="bg-gray-50 rounded-2xl border-2 border-gray-300 p-6 flex items-center justify-center min-h-80 cursor-pointer hover:bg-gray-100 transition-colors" onClick={() => setShowImageModal(true)}>
                   <img
                     src={imagenes[imagenActual]?.url}
                     alt={producto.nombre}
-                    className="max-w-full max-h-full object-contain"
+                    className="max-w-full max-h-full object-contain hover:opacity-90 transition-opacity"
                   />
                 </div>
               )}
@@ -271,15 +302,15 @@ const ProductDetail: React.FC = () => {
 
             {/* Galería de Thumbnails - Solo si hay más de 1 imagen */}
             {imagenes.length > 1 && (
-              <div className="mt-4 w-full max-w-md">
-                <div className="flex gap-2 overflow-x-auto pb-2">
+              <div className="mt-4 w-full">
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
                   {imagenes.map((img, index) => (
                     <button
                       key={img.id}
                       onClick={() => setImagenActual(index)}
                       className={`flex-shrink-0 w-20 h-20 rounded-lg border-2 overflow-hidden transition-all ${
-                        index === imagenActual 
-                          ? 'border-orange-500 ring-2 ring-orange-200' 
+                        index === imagenActual
+                          ? 'border-orange-500 ring-2 ring-orange-200'
                           : 'border-gray-300 hover:border-orange-300'
                       }`}
                     >
@@ -348,10 +379,10 @@ const ProductDetail: React.FC = () => {
 
             {/* Tabs */}
             <div className="mt-8">
-              <div className="flex space-x-0">
+              <div className="flex space-x-0 overflow-x-auto">
                 <button
                   onClick={() => setActiveTab('caracteristicas')}
-                  className={`px-6 py-3 font-semibold rounded-l-full transition-colors ${
+                  className={`px-4 sm:px-6 py-3 font-semibold rounded-l-full transition-colors whitespace-nowrap flex-shrink-0 ${
                     activeTab === 'caracteristicas'
                       ? 'bg-orange-500 text-white'
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -361,7 +392,7 @@ const ProductDetail: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setActiveTab('descargas')}
-                  className={`px-6 py-3 font-semibold transition-colors ${
+                  className={`px-4 sm:px-6 py-3 font-semibold transition-colors whitespace-nowrap flex-shrink-0 ${
                     activeTab === 'descargas'
                       ? 'bg-orange-500 text-white'
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -371,7 +402,7 @@ const ProductDetail: React.FC = () => {
                 </button>
                 <button
                   onClick={() => setActiveTab('videos')}
-                  className={`px-6 py-3 font-semibold rounded-r-full transition-colors ${
+                  className={`px-4 sm:px-6 py-3 font-semibold rounded-r-full transition-colors whitespace-nowrap flex-shrink-0 ${
                     activeTab === 'videos'
                       ? 'bg-orange-500 text-white'
                       : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -389,9 +420,9 @@ const ProductDetail: React.FC = () => {
                     {(producto as any).atributos && (producto as any).atributos.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {(producto as any).atributos.map((atributo: any, index: number) => (
-                          <div key={atributo.atributo_id || index} className="flex">
-                            <span className="font-medium text-gray-700 w-32">{atributo.atributo_nombre}:</span>
-                            <span className="text-gray-600">{atributo.valor}</span>
+                          <div key={atributo.atributo_id || index} className="flex flex-wrap gap-1">
+                            <span className="font-medium text-gray-700 min-w-fit">{atributo.atributo_nombre}:</span>
+                            <span className="text-gray-600 break-words">{atributo.valor}</span>
                           </div>
                         ))}
                       </div>
@@ -420,6 +451,28 @@ const ProductDetail: React.FC = () => {
         </div>
       </main>
       <Footer />
+
+      {/* Modal de imagen ampliada */}
+      {showImageModal && imagenes.length > 0 && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowImageModal(false)}
+        >
+          <button
+            onClick={() => setShowImageModal(false)}
+            className="absolute top-4 right-4 text-white hover:text-gray-300 text-4xl font-bold z-10"
+            aria-label="Cerrar"
+          >
+            ×
+          </button>
+          <img
+            src={imagenes[imagenActual]?.url}
+            alt={producto?.nombre || 'Producto'}
+            className="max-w-full max-h-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </>
   );
 };

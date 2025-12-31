@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Producto, Categoria, Atributo, ProductoAtributo } from '../../services/types';
-import ImageUploadManager from '../../components/ImageUploadManager/ImageUploadManager';
+import ImageUploadManager, { ImageUploadManagerRef } from '../../components/ImageUploadManager/ImageUploadManager';
 import { ProductoImagen } from '../../services/modules/ProductoImagenService';
 import apiManager from '../../services/ApiIndex';
 
@@ -58,6 +58,9 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
 
   const [imagenes, setImagenes] = useState<ProductoImagen[]>([]);
   const [loadingImagenes, setLoadingImagenes] = useState(false);
+  const [hasPendingImages, setHasPendingImages] = useState(false);
+
+  const imageUploadRef = useRef<ImageUploadManagerRef>(null);
 
   // Efecto para cargar datos cuando se abre el modal
   useEffect(() => {
@@ -265,25 +268,42 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
     }
   };
 
-  // ← NUEVA FUNCIÓN: Aplanar categorías con indicador visual de jerarquía
-  const flattenCategorias = (cats: Categoria[], prefix: string = ''): Array<{id: number, nombre: string, displayName: string}> => {
-    let result: Array<{id: number, nombre: string, displayName: string}> = [];
-    
+  // ← NUEVA FUNCIÓN: Aplanar categorías con indentación notoria
+  const flattenCategorias = (cats: Categoria[], level: number = 0): Array<{id: number, nombre: string, displayName: string, isAbuelo: boolean, level: number}> => {
+    let result: Array<{id: number, nombre: string, displayName: string, isAbuelo: boolean, level: number}> = [];
+
     cats.forEach(cat => {
-      const displayName = prefix ? `${prefix} → ${cat.nombre}` : cat.nombre;
-      
+      const isAbuelo = level === 0; // Nivel 0 = Abuelo (NO seleccionable)
+      const isPadre = level === 1;  // Nivel 1 = Padre
+      const isHijo = level === 2;   // Nivel 2 = Hijo
+
+      // Indentación notoria con guiones medios
+      let displayName = '';
+
+      if (isAbuelo) {
+        // Abuelo: Mayúsculas, sin indentación
+        displayName = `${cat.nombre.toUpperCase()}`;
+      } else if (isPadre) {
+        // Padre: Indentación visible con guiones
+        displayName = `---- ${cat.nombre}`;
+      } else if (isHijo) {
+        // Hijo: Mayor indentación con más guiones
+        displayName = `-------- ${cat.nombre}`;
+      }
+
       result.push({
         id: cat.id,
         nombre: cat.nombre,
-        displayName: displayName
+        displayName: displayName,
+        isAbuelo: isAbuelo,
+        level: level
       });
-      
+
       if (cat.children && cat.children.length > 0) {
-        const newPrefix = prefix ? `${prefix} → ${cat.nombre}` : cat.nombre;
-        result = result.concat(flattenCategorias(cat.children, newPrefix));
+        result = result.concat(flattenCategorias(cat.children, level + 1));
       }
     });
-    
+
     return result;
   };
 
@@ -354,7 +374,7 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
   // Manejar envío del formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
@@ -362,6 +382,18 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
     try {
       setLoading(true);
 
+      // 1. Primero subir imágenes pendientes si las hay
+      if (hasPendingImages && imageUploadRef.current && editing?.id) {
+        try {
+          await imageUploadRef.current.uploadPendingImages();
+        } catch (error) {
+          console.error('Error al subir imágenes:', error);
+          alert('Error al subir las imágenes. Por favor intenta nuevamente.');
+          return; // Detener si falla la subida de imágenes
+        }
+      }
+
+      // 2. Luego actualizar el producto
       const productoData = {
         nombre: formData.nombre.trim(),
         descripcion: formData.descripcion.trim(),
@@ -506,7 +538,54 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
                   </div>
                 </div>
 
-                {/* SKU y Categoría */}
+                {/* Categoría - Ancho completo */}
+                <div>
+                  <label htmlFor="categoria_id" className="block text-sm font-medium text-gray-700 mb-1">
+                    Categoría *
+                  </label>
+                  <select
+                    id="categoria_id"
+                    value={formData.categoria_id}
+                    onChange={(e) => setFormData({...formData, categoria_id: e.target.value})}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                      errors.categoria_id ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    disabled={loading || loadingCategorias}
+                  >
+                    <option value="">Seleccionar categoría...</option>
+                    {flatCategorias.map(cat => {
+                      // Clases CSS según nivel para mejor visualización
+                      let optionClass = '';
+                      if (cat.isAbuelo) {
+                        optionClass = 'font-bold text-gray-600 bg-gray-100';
+                      } else if (cat.level === 1) {
+                        optionClass = 'font-medium text-gray-800';
+                      } else if (cat.level === 2) {
+                        optionClass = 'text-gray-700';
+                      }
+
+                      return (
+                        <option
+                          key={cat.id}
+                          value={cat.isAbuelo ? "" : cat.id}
+                          disabled={cat.isAbuelo}
+                          className={optionClass}
+                          style={{
+                            fontWeight: cat.isAbuelo ? 'bold' : cat.level === 1 ? '600' : 'normal',
+                            color: cat.isAbuelo ? '#9ca3af' : cat.level === 1 ? '#1f2937' : '#4b5563'
+                          }}
+                        >
+                          {cat.displayName}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  {errors.categoria_id && (
+                    <p className="mt-1 text-sm text-red-600">{errors.categoria_id}</p>
+                  )}
+                </div>
+
+                {/* SKU y Estado activo */}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="sku" className="block text-sm font-medium text-gray-700 mb-1">
@@ -524,46 +603,20 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
                   </div>
 
                   <div>
-                    <label htmlFor="categoria_id" className="block text-sm font-medium text-gray-700 mb-1">
-                      Categoría *
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Estado
                     </label>
-                    <select
-                      id="categoria_id"
-                      value={formData.categoria_id}
-                      onChange={(e) => setFormData({...formData, categoria_id: e.target.value})}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
-                        errors.categoria_id ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      disabled={loading || loadingCategorias}
-                    >
-                      <option value="">Seleccionar categoría...</option>
-                      {flatCategorias.map(cat => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.displayName}
-                        </option>
-                      ))}
-                    </select>
-                    {errors.categoria_id && (
-                      <p className="mt-1 text-sm text-red-600">{errors.categoria_id}</p>
-                    )}
+                    <label className="flex items-center h-10 px-3 py-2 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        checked={formData.activo}
+                        onChange={(e) => setFormData({...formData, activo: e.target.checked})}
+                        className="mr-2 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
+                        disabled={loading}
+                      />
+                      <span className="text-sm text-gray-700">Producto activo</span>
+                    </label>
                   </div>
-                </div>
-
-                {/* Estado activo */}
-                <div>
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={formData.activo}
-                      onChange={(e) => setFormData({...formData, activo: e.target.checked})}
-                      className="mr-2 text-orange-600 focus:ring-orange-500 border-gray-300 rounded"
-                      disabled={loading}
-                    />
-                    <span className="text-sm font-medium text-gray-700">Producto activo</span>
-                  </label>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Los productos inactivos no se muestran en el catálogo público
-                  </p>
                 </div>
               </div>
 
@@ -675,6 +728,7 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
               
               {editing && editing.id ? (
                 <ImageUploadManager
+                  ref={imageUploadRef}
                   productoId={editing.id}
                   imagenes={imagenes}
                   onImagenesChange={setImagenes}
@@ -683,6 +737,9 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
                   onSetPrincipal={handleSetPrincipal}
                   maxImagenes={10}
                   disabled={loading || loadingImagenes}
+                  onPreviewsChange={(hasPreviews, validFiles) => {
+                    setHasPendingImages(hasPreviews);
+                  }}
                 />
               ) : (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 text-sm text-yellow-800">
