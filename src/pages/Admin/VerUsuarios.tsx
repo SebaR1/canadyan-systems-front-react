@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import { Usuario } from '../../services/types';
+import UsuarioModal from './UsuarioModal';
+import DeleteConfirmModal from '../../components/DeleteConfirmModal/DeleteConfirmModal';
+import apiManager from '../../services/ApiIndex';
+import { TipoUsuario } from '../../services/modules/TiposUsuarioService';
 
 interface UsuariosResponse {
   usuarios: Usuario[];
@@ -26,6 +30,11 @@ const VerUsuarios: React.FC = () => {
   const [totalPages, setTotalPages] = useState(0);
   const [totalUsuarios, setTotalUsuarios] = useState(0);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingUser, setEditingUser] = useState<Usuario | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<Usuario | null>(null);
+  const [tiposUsuario, setTiposUsuario] = useState<TipoUsuario[]>([]);
 
   const usersPerPage = 10;
 
@@ -33,6 +42,11 @@ const VerUsuarios: React.FC = () => {
   useEffect(() => {
     loadUsuarios();
   }, [currentPage, activeSearchTerm]); // ✅ Usa activeSearchTerm, no searchTerm
+
+  // Cargar tipos de usuario
+  useEffect(() => {
+    loadTiposUsuario();
+  }, []);
 
   const loadUsuarios = async () => {
     try {
@@ -89,6 +103,121 @@ const VerUsuarios: React.FC = () => {
     setSearchTerm('');
     setActiveSearchTerm(''); // ✅ Limpiar el filtro activo
     setCurrentPage(1);
+  };
+
+  const loadTiposUsuario = async () => {
+    try {
+      const response = await apiManager.tiposUsuario.listar();
+      if (response.success && response.data) {
+        setTiposUsuario(response.data.tipos);
+      }
+    } catch (error) {
+      console.error('Error loading user types:', error);
+    }
+  };
+
+  const handleEdit = (usuario: Usuario) => {
+    setEditingUser(usuario);
+    setShowModal(true);
+  };
+
+  const handleDeleteClick = (usuario: Usuario) => {
+    setDeletingUser(usuario);
+    setShowDeleteModal(true);
+  };
+
+  const handleSubmit = async (data: any): Promise<string | void> => {
+    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
+    // Limpiar CUIT (quitar guiones)
+    const cleanCuit = data.cuit.replace(/\D/g, '');
+
+    try {
+      if (editingUser) {
+        // UPDATE
+        const response = await fetch(`${API_URL}/api/routes/usuarios.php?action=update-profile&id=${editingUser.id}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nombre: data.nombre,
+            apellido: data.apellido,
+            razonSocialEmpresa: data.razonSocialEmpresa,
+            cuit: cleanCuit,
+            correoElectronico: data.correoElectronico,
+            celular: data.celular,
+            ciudad: data.ciudad,
+            direccion: data.direccion,
+            provincia: data.provincia,
+            tipoUsuarioId: data.tipo_usuario_id
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          await loadUsuarios();
+          setShowModal(false);
+          setEditingUser(null);
+        } else {
+          throw new Error(result.error || 'Error al actualizar usuario');
+        }
+      } else {
+        // CREATE
+        const response = await fetch(`${API_URL}/api/routes/usuarios.php?action=admin-create`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nombre: data.nombre,
+            apellido: data.apellido,
+            razonSocialEmpresa: data.razonSocialEmpresa,
+            cuit: cleanCuit,
+            correoElectronico: data.correoElectronico,
+            celular: data.celular,
+            ciudad: data.ciudad,
+            direccion: data.direccion,
+            provincia: data.provincia,
+            tipoUsuario: data.tipo_usuario_id
+          })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+          await loadUsuarios();
+          return result.data.generated_password;
+        } else {
+          throw new Error(result.error || 'Error al crear usuario');
+        }
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      throw error;
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingUser) return;
+
+    const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+
+    try {
+      const response = await fetch(`${API_URL}/api/routes/usuarios.php?action=delete&id=${deletingUser.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        await loadUsuarios();
+        setShowDeleteModal(false);
+        setDeletingUser(null);
+      } else {
+        throw new Error(result.error || 'Error al eliminar usuario');
+      }
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      throw error;
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -187,18 +316,29 @@ const VerUsuarios: React.FC = () => {
                 )}
               </form>
 
-              {/* Estadísticas */}
-              <div className="text-sm text-gray-500">
-                {activeSearchTerm ? (
-                  <>
-                    <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs mr-2">
-                      Filtrando: "{activeSearchTerm}"
-                    </span>
-                    {totalUsuarios} resultado{totalUsuarios !== 1 ? 's' : ''}
-                  </>
-                ) : (
-                  <>Total: {totalUsuarios} usuarios</>
-                )}
+              {/* Estadísticas y botón nuevo usuario */}
+              <div className="flex items-center space-x-4">
+                <div className="text-sm text-gray-500">
+                  {activeSearchTerm ? (
+                    <>
+                      <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs mr-2">
+                        Filtrando: "{activeSearchTerm}"
+                      </span>
+                      {totalUsuarios} resultado{totalUsuarios !== 1 ? 's' : ''}
+                    </>
+                  ) : (
+                    <>Total: {totalUsuarios} usuarios</>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingUser(null);
+                    setShowModal(true);
+                  }}
+                  className="px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 text-sm font-medium"
+                >
+                  + Nuevo Usuario
+                </button>
               </div>
             </div>
           </div>
@@ -249,9 +389,11 @@ const VerUsuarios: React.FC = () => {
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Tipo
                         </th>
-                        {/* ✅ ELIMINADA LA COLUMNA "ESTADO" */}
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Registro
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Acciones
                         </th>
                       </tr>
                     </thead>
@@ -286,12 +428,31 @@ const VerUsuarios: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={getTypeClass(usuario.tipo_usuario_id)}>
-                              {usuario.tipo_usuario_id === 2 ? 'Admin' : 'Usuario'}
+                              {usuario.tipo_usuario_nombre || 'N/A'}
                             </span>
                           </td>
-                          {/* ✅ ELIMINADA LA CELDA DEL ESTADO */}
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                             {formatDate(usuario.created_at)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button
+                              onClick={() => handleEdit(usuario)}
+                              className="text-orange-600 hover:text-orange-900 mr-3"
+                              title="Editar usuario"
+                            >
+                              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteClick(usuario)}
+                              className="text-red-600 hover:text-red-900"
+                              title="Eliminar usuario"
+                            >
+                              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                              </svg>
+                            </button>
                           </td>
                         </tr>
                       ))}
@@ -373,6 +534,35 @@ const VerUsuarios: React.FC = () => {
         </div>
       </main>
       <Footer />
+
+      {/* Modal de crear/editar usuario */}
+      {showModal && (
+        <UsuarioModal
+          isOpen={showModal}
+          onClose={() => {
+            setShowModal(false);
+            setEditingUser(null);
+          }}
+          onSubmit={handleSubmit}
+          editing={editingUser}
+          tiposUsuario={tiposUsuario}
+        />
+      )}
+
+      {/* Modal de confirmación de eliminación */}
+      {showDeleteModal && deletingUser && (
+        <DeleteConfirmModal
+          isOpen={showDeleteModal}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setDeletingUser(null);
+          }}
+          onConfirm={handleDelete}
+          title="Eliminar Usuario"
+          message="Esta acción marcará el usuario como eliminado. El usuario no podrá iniciar sesión pero sus datos se conservarán en el sistema."
+          itemName={`${deletingUser.nombre} ${deletingUser.apellido}`}
+        />
+      )}
     </>
   );
 };

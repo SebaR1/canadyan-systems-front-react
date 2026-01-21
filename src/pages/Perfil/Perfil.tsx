@@ -34,10 +34,36 @@ const UserProfile: React.FC<UserProfileProps> = ({
     ciudad: '',
     direccion: '',
     provincia: '',
-    tipo_usuario_nombre: ''
+    tipo_usuario_nombre: '',
+    tipo_usuario_id: 1
   });
 
   const [originalData, setOriginalData] = useState(formData);
+  const [tiposUsuario, setTiposUsuario] = useState<Array<{ id: number; nombre: string }>>([]);
+
+  // Verificar si el usuario actual es admin
+  const isAdmin = () => {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return false;
+    const user = JSON.parse(userStr);
+    return user.tipo_usuario_id === 2;
+  };
+
+  // Cargar tipos de usuario
+  useEffect(() => {
+    const cargarTiposUsuario = async () => {
+      try {
+        const response = await apiManager.tiposUsuario.listar();
+        if (response.success && response.data) {
+          setTiposUsuario(response.data.tipos);
+        }
+      } catch (error) {
+        console.error('Error cargando tipos de usuario:', error);
+      }
+    };
+
+    cargarTiposUsuario();
+  }, []);
 
   // Cargar datos del usuario
   useEffect(() => {
@@ -78,7 +104,8 @@ const UserProfile: React.FC<UserProfileProps> = ({
           ciudad: userData.ciudad || '',
           direccion: userData.direccion || '',
           provincia: userData.provincia || '',
-          tipo_usuario_nombre: userData.tipo_usuario_nombre || ''
+          tipo_usuario_nombre: userData.tipo_usuario_nombre || '',
+          tipo_usuario_id: userData.tipo_usuario_id || 1
         };
         
         setFormData(userFormData);
@@ -95,10 +122,33 @@ const UserProfile: React.FC<UserProfileProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+
+    if (name === 'cuit') {
+      // Formatear CUIT automáticamente
+      const cleanValue = value.replace(/\D/g, ''); // Solo números
+      let formattedValue = cleanValue;
+
+      // Solo formatear si hay suficientes números, no si se está borrando
+      if (cleanValue.length > 2 && cleanValue.length <= 10) {
+        formattedValue = cleanValue.slice(0, 2) + '-' + cleanValue.slice(2);
+      } else if (cleanValue.length === 11) {
+        formattedValue = cleanValue.slice(0, 2) + '-' + cleanValue.slice(2, 10) + '-' + cleanValue.slice(10, 11);
+      }
+
+      // Limitar a 11 números máximo
+      if (cleanValue.length <= 11) {
+        setFormData(prev => ({
+          ...prev,
+          [name]: formattedValue
+        }));
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+
     setError(null);
     setSuccess(null);
   };
@@ -130,7 +180,12 @@ const UserProfile: React.FC<UserProfileProps> = ({
         celular: formData.celular,
         ciudad: formData.ciudad,
         direccion: formData.direccion,
-        provincia: formData.provincia
+        provincia: formData.provincia,
+        ...(isAdmin() && {
+          cuit: formData.cuit,
+          correoElectronico: formData.correo_electronico,
+          tipoUsuarioId: formData.tipo_usuario_id
+        })
       };
 
       let response;
@@ -312,8 +367,10 @@ const UserProfile: React.FC<UserProfileProps> = ({
                       name="cuit"
                       value={formData.cuit}
                       onChange={handleInputChange}
-                      disabled={true} // CUIT no es editable
-                      className="w-full px-3 py-2 border rounded-md bg-gray-100 cursor-not-allowed"
+                      disabled={!isEditing || !isAdmin()}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                        !isEditing || !isAdmin() ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
+                      }`}
                       placeholder="20-12345678-9"
                     />
                   </div>
@@ -330,8 +387,10 @@ const UserProfile: React.FC<UserProfileProps> = ({
                       name="correo_electronico"
                       value={formData.correo_electronico}
                       onChange={handleInputChange}
-                      disabled={true} // Email no es editable
-                      className="w-full px-3 py-2 border rounded-md bg-gray-100 cursor-not-allowed"
+                      disabled={!isEditing || !isAdmin()}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
+                        !isEditing || !isAdmin() ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'
+                      }`}
                       placeholder="tu@email.com"
                     />
                   </div>
@@ -415,14 +474,37 @@ const UserProfile: React.FC<UserProfileProps> = ({
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Tipo de Usuario
                     </label>
-                    <input
-                      type="text"
-                      name="tipo_usuario_nombre"
-                      value={formData.tipo_usuario_nombre}
-                      disabled={true}
-                      className="w-full px-3 py-2 border rounded-md bg-gray-100 cursor-not-allowed"
-                      placeholder="Usuario"
-                    />
+                    {isAdmin() && isEditing ? (
+                      <select
+                        name="tipo_usuario_id"
+                        value={formData.tipo_usuario_id || ''}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value);
+                          const tipoSeleccionado = tiposUsuario.find(t => t.id === value);
+                          setFormData(prev => ({
+                            ...prev,
+                            tipo_usuario_id: value,
+                            tipo_usuario_nombre: tipoSeleccionado?.nombre || ''
+                          }));
+                        }}
+                        className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white"
+                      >
+                        {tiposUsuario.map(tipo => (
+                          <option key={tipo.id} value={tipo.id}>
+                            {tipo.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        name="tipo_usuario_nombre"
+                        value={formData.tipo_usuario_nombre}
+                        disabled={true}
+                        className="w-full px-3 py-2 border rounded-md bg-gray-100 cursor-not-allowed"
+                        placeholder="Usuario"
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -430,13 +512,17 @@ const UserProfile: React.FC<UserProfileProps> = ({
 
             {/* Información adicional */}
             {!isLoading && (
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                {/*<p className="text-sm text-gray-500">
-                  * Los campos marcados con asterisco son obligatorios.
-                </p> */}
-                <p className="text-sm text-gray-500 mt-1">
-                  El correo electrónico y CUIT no pueden ser modificados. Para cambios contacta al administrador.
-                </p>
+              <div className="mt-6 pt-6 border-gray-200">
+                {!isAdmin() && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    El correo electrónico y CUIT no pueden ser modificados. Para cambios contacta al administrador.
+                  </p>
+                )}
+                {isAdmin() && (
+                  <p className="text-sm text-orange-600 font-medium mt-1">
+                    Como administrador, puedes editar todos los campos incluyendo CUIT, correo electrónico y tipo de usuario.
+                  </p>
+                )}
               </div>
             )}
           </div>

@@ -6,6 +6,7 @@ import apiManager from '../../services/ApiIndex';
 
 const Contacto: React.FC = () => {
   const location = useLocation();
+  const [emailCopied, setEmailCopied] = useState(false);
   const [formData, setFormData] = useState({
     nombreApellido: '',
     cuit: '',
@@ -138,12 +139,14 @@ const Contacto: React.FC = () => {
     }
   };
 
-  const handleCall = () => {
-    window.location.href = 'tel:+541170093111';
-  };
-
-  const handleEmail = () => {
-    window.location.href = 'mailto:ventas@canadian.com.ar';
+  const handleCopyEmail = async () => {
+    try {
+      await navigator.clipboard.writeText('ventas@canadian.com.ar');
+      setEmailCopied(true);
+      setTimeout(() => setEmailCopied(false), 2000);
+    } catch (err) {
+      console.error('Error al copiar email:', err);
+    }
   };
 
   return (
@@ -176,10 +179,12 @@ const Contacto: React.FC = () => {
                 </h1>
 
                 <div className="space-y-4">
-                  {/* Teléfono con icono */}
-                  <button
-                    onClick={handleCall}
-                    className="flex items-center space-x-3 text-orange-500 hover:text-orange-600 transition-colors touch-manipulation"
+                  {/* Teléfono - WhatsApp */}
+                  <a
+                    href="https://wa.me/5491170093111"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center space-x-3 text-orange-500 hover:text-orange-600 transition-colors touch-manipulation w-fit"
                   >
                     <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
                       <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
@@ -187,12 +192,13 @@ const Contacto: React.FC = () => {
                       </svg>
                     </div>
                     <span className="text-sm font-medium">+54 11 7009-3111</span>
-                  </button>
+                  </a>
 
                   {/* Email con icono */}
                   <button
-                    onClick={handleEmail}
-                    className="flex items-center space-x-3 text-orange-500 hover:text-orange-600 transition-colors touch-manipulation"
+                    onClick={handleCopyEmail}
+                    className="flex items-center space-x-3 text-orange-500 hover:text-orange-600 transition-colors touch-manipulation relative w-fit"
+                    title="Copiar email"
                   >
                     <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
                       <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -201,6 +207,11 @@ const Contacto: React.FC = () => {
                       </svg>
                     </div>
                     <span className="text-sm font-medium">ventas@canadian.com.ar</span>
+                    {emailCopied && (
+                      <span className="absolute -bottom-8 left-0 bg-orange-500 text-white text-xs px-2 py-1 rounded">
+                        ✓ Email copiado
+                      </span>
+                    )}
                   </button>
                 </div>
               </div>
