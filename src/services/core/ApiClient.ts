@@ -47,6 +47,56 @@ export class ApiClient {
 
       clearTimeout(timeoutId);
 
+      // ⭐ NUEVO: Detectar sesión expirada ANTES de parsear el body completo
+      if (response.status === 401 || response.status === 403) {
+        // Parsear la respuesta para verificar el mensaje
+        let errorData;
+        try {
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            errorData = await response.json();
+          }
+        } catch (e) {
+          // Si falla el parse, continuar con el flujo normal
+        }
+
+        // Verificar si es error de autenticación
+        const message = errorData?.message || '';
+        if (message.toLowerCase().includes('acceso denegado') ||
+            message.toLowerCase().includes('no autorizado') ||
+            message.toLowerCase().includes('solo administradores') ||
+            message.toLowerCase().includes('requieren permisos')) {
+
+          // Limpiar autenticación
+          localStorage.removeItem('user');
+          localStorage.removeItem('auth_token');
+
+          console.log('🔴 SESIÓN EXPIRADA DETECTADA');
+          console.log('📍 Limpiando localStorage...');
+
+          // Marcar que la sesión expiró para que el Header lo detecte
+          localStorage.setItem('session_expired', 'true');
+          console.log('🏷️ Bandera session_expired establecida en localStorage');
+
+          // Emitir evento para que otros componentes lo sepan
+          console.log('📡 Emitiendo evento session-expired...');
+          window.dispatchEvent(new CustomEvent('session-expired'));
+          console.log('✅ Evento session-expired emitido correctamente');
+
+          // Emitir evento storage manualmente (para mismo tab)
+          window.dispatchEvent(new Event('storage'));
+          console.log('📡 Evento storage emitido');
+
+          // NO redirigir - dejar que el Header maneje la redirección y notificación
+
+          // Retornar error para evitar procesar más
+          return {
+            success: false,
+            error: 'Sesión expirada. Redirigiendo al login...',
+          };
+        }
+      }
+
       let data;
       const contentType = response.headers.get('content-type');
       

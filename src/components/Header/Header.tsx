@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import RegistroCliente from '../Modals/RegistroCliente/RegistroCliente';
 import AccesoCliente from '../Modals/AccesoCliente/AccesoCliente';
+import SessionExpiredNotification from '../SessionExpiredNotification/SessionExpiredNotification';
 import apiManager from '../../services/ApiIndex';
 
 interface User {
@@ -25,6 +26,8 @@ export interface Categoria {
 }
 
 const Header: React.FC = () => {
+  console.log('🏁 Header montado/renderizado');
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [expandedSubCategory, setExpandedSubCategory] = useState<string | null>(null);
@@ -35,17 +38,53 @@ const Header: React.FC = () => {
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loadingCategorias, setLoadingCategorias] = useState(false);
-  
+  const [marcas, setMarcas] = useState<string[]>([]);
+  const [loadingMarcas, setLoadingMarcas] = useState(false);
+
   // ✅ NUEVO: Estados para búsqueda
   const [searchTerm, setSearchTerm] = useState('');
   const [searchTermMobile, setSearchTermMobile] = useState('');
   const [showSearchDesktop, setShowSearchDesktop] = useState(false);
-  
+
+  // Estado para notificación de sesión expirada
+  const [showSessionExpiredNotification, setShowSessionExpiredNotification] = useState(false);
+
   const navigate = useNavigate();
 
   // Verificar si hay usuario logueado al cargar el componente
   useEffect(() => {
     const checkUser = () => {
+      // Verificar si la sesión expiró
+      const sessionExpired = localStorage.getItem('session_expired');
+      if (sessionExpired === 'true') {
+        console.log('🔍 Bandera session_expired detectada en localStorage');
+
+        // Limpiar bandera inmediatamente
+        localStorage.removeItem('session_expired');
+        console.log('🧹 Bandera session_expired limpiada');
+
+        // Limpiar usuario del estado
+        setUser(null);
+
+        // Mostrar notificación
+        console.log('🔔 Mostrando notificación de sesión expirada...');
+        setShowSessionExpiredNotification(true);
+
+        // Abrir modal de login
+        console.log('🚪 Abriendo modal de login...');
+        setShowAccesoModal(true);
+
+        // Cerrar dropdown si estaba abierto
+        setShowUserDropdown(false);
+
+        // Redirigir a home
+        console.log('🔄 Redirigiendo a home...');
+        navigate('/');
+
+        return; // No continuar con el checkUser normal
+      }
+
+      // Flujo normal de checkUser
       const userData = localStorage.getItem('user');
       if (userData) {
         try {
@@ -63,7 +102,49 @@ const Header: React.FC = () => {
     // Escuchar cambios en localStorage (para cuando el usuario se loguee/desloguee)
     window.addEventListener('storage', checkUser);
     return () => window.removeEventListener('storage', checkUser);
-  }, []);
+  }, [navigate]);
+
+  // Escuchar evento de sesión expirada
+  useEffect(() => {
+    console.log('🎧 Registrando listener para session-expired...');
+
+    const handleSessionExpired = () => {
+      console.log('🔴 ¡EVENTO SESSION-EXPIRED RECIBIDO!');
+      console.log('📋 Estado actual:', {
+        user,
+        showAccesoModal,
+        showSessionExpiredNotification
+      });
+
+      // Limpiar usuario del estado
+      console.log('🧹 Limpiando usuario del estado...');
+      setUser(null);
+
+      // Mostrar notificación
+      console.log('🔔 Mostrando notificación...');
+      setShowSessionExpiredNotification(true);
+
+      // Abrir modal de login automáticamente
+      console.log('🚪 Abriendo modal de login...');
+      setShowAccesoModal(true);
+
+      // Cerrar dropdown de usuario si estaba abierto
+      setShowUserDropdown(false);
+
+      // Redirigir a home
+      console.log('🔄 Ejecutando navigate("/")...');
+      navigate('/');
+      console.log('✅ Navigate ejecutado');
+    };
+
+    window.addEventListener('session-expired', handleSessionExpired);
+    console.log('✅ Listener session-expired REGISTRADO correctamente');
+
+    return () => {
+      console.log('❌ Removiendo listener session-expired...');
+      window.removeEventListener('session-expired', handleSessionExpired);
+    };
+  }, [navigate]);
 
   // Cargar categorías desde la API
   useEffect(() => {
@@ -84,6 +165,33 @@ const Header: React.FC = () => {
     };
 
     loadCategorias();
+  }, []);
+
+  // Cargar marcas desde la API (valores predefinidos del select, no los de productos)
+  useEffect(() => {
+    const loadMarcas = async () => {
+      setLoadingMarcas(true);
+      try {
+        const response = await apiManager.atributos.listar();
+        if (response.success && response.data?.atributos) {
+          // Buscar el atributo "Marca" y obtener sus valores predefinidos
+          const marcaAtributo = response.data.atributos.find(
+            attr => attr.nombre.toLowerCase() === 'marca' && attr.tipo === 'select'
+          );
+          if (marcaAtributo && marcaAtributo.valores && Array.isArray(marcaAtributo.valores)) {
+            setMarcas(marcaAtributo.valores);
+          }
+        } else {
+          console.error('Error al cargar marcas:', response.error);
+        }
+      } catch (error) {
+        console.error('Error al cargar marcas:', error);
+      } finally {
+        setLoadingMarcas(false);
+      }
+    };
+
+    loadMarcas();
   }, []);
 
   const toggleMenu = () => {
@@ -418,9 +526,9 @@ const Header: React.FC = () => {
                 )}
               </div>
 
-              {/* MARCAS - Mantengo igual que tenías */}
+              {/* MARCAS - Ahora dinámico desde la BD */}
               <div className="relative">
-                <button 
+                <button
                   className="text-white hover:text-orange-400 transition-colors py-2 flex items-center space-x-1"
                   onClick={() => toggleDesktopDropdown('marcas')}
                 >
@@ -429,39 +537,27 @@ const Header: React.FC = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </button>
-                
-                {/* Dropdown MARCAS */}
+
+                {/* Dropdown MARCAS - Dinámico */}
                 {desktopDropdown === 'marcas' && (
                   <div className="absolute top-full left-0 mt-1 w-48 bg-black text-white rounded-md shadow-lg z-50">
                     <div className="py-2">
-                      <Link
-                        to="/catalogo?marca=Hikvision"
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
-                        onClick={() => setDesktopDropdown(null)}
-                      >
-                        Hikvision
-                      </Link>
-                      <Link
-                        to="/catalogo?marca=Dahua"
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
-                        onClick={() => setDesktopDropdown(null)}
-                      >
-                        Dahua
-                      </Link>
-                      <Link
-                        to="/catalogo?marca=Ubiquiti"
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
-                        onClick={() => setDesktopDropdown(null)}
-                      >
-                        Ubiquiti
-                      </Link>
-                      <Link
-                        to="/catalogo?marca=TP-Link"
-                        className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
-                        onClick={() => setDesktopDropdown(null)}
-                      >
-                        TP-Link
-                      </Link>
+                      {loadingMarcas ? (
+                        <div className="px-4 py-2 text-gray-400 text-sm">Cargando marcas...</div>
+                      ) : marcas.length > 0 ? (
+                        marcas.map((marca) => (
+                          <Link
+                            key={marca}
+                            to={`/catalogo?marca=${encodeURIComponent(marca)}`}
+                            className="block w-full text-left px-4 py-2 hover:bg-gray-700 transition-colors"
+                            onClick={() => setDesktopDropdown(null)}
+                          >
+                            {marca}
+                          </Link>
+                        ))
+                      ) : (
+                        <div className="px-4 py-2 text-gray-400 text-sm">No hay marcas disponibles</div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -667,50 +763,41 @@ const Header: React.FC = () => {
             )}
           </div>
 
-          {/* MARCAS - Mantengo igual */}
+          {/* MARCAS - Ahora dinámico desde la BD */}
           <div>
-            <button 
+            <button
               className="w-full text-left py-3 px-2 text-white hover:bg-gray-400 rounded transition-colors flex items-center justify-between"
               onClick={() => toggleCategory('marcas')}
             >
               <span>MARCAS</span>
-              <svg 
-                className={`w-4 h-4 transition-transform duration-200 ${expandedCategory === 'marcas' ? 'rotate-180' : ''}`} 
-                fill="none" 
-                stroke="currentColor" 
+              <svg
+                className={`w-4 h-4 transition-transform duration-200 ${expandedCategory === 'marcas' ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
                 viewBox="0 0 24 24"
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             </button>
-            
-            {/* Submarcas */}
+
+            {/* Submarcas - Dinámicas */}
             {expandedCategory === 'marcas' && (
               <div className="ml-4 mt-2 space-y-1">
-                <button
-                  className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
-                  onClick={() => handleNavigation('/catalogo?marca=Hikvision')}
-                >
-                  Hikvision
-                </button>
-                <button
-                  className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
-                  onClick={() => handleNavigation('/catalogo?marca=Dahua')}
-                >
-                  Dahua
-                </button>
-                <button
-                  className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
-                  onClick={() => handleNavigation('/catalogo?marca=Ubiquiti')}
-                >
-                  Ubiquiti
-                </button>
-                <button
-                  className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
-                  onClick={() => handleNavigation('/catalogo?marca=TP-Link')}
-                >
-                  TP-Link
-                </button>
+                {loadingMarcas ? (
+                  <div className="py-2 px-2 text-sm text-gray-400">Cargando marcas...</div>
+                ) : marcas.length > 0 ? (
+                  marcas.map((marca) => (
+                    <button
+                      key={marca}
+                      className="w-full text-left py-2 px-2 text-sm text-gray-200 hover:bg-gray-400 rounded transition-colors"
+                      onClick={() => handleNavigation(`/catalogo?marca=${encodeURIComponent(marca)}`)}
+                    >
+                      {marca}
+                    </button>
+                  ))
+                ) : (
+                  <div className="py-2 px-2 text-sm text-gray-400">No hay marcas disponibles</div>
+                )}
               </div>
             )}
           </div>
@@ -733,9 +820,15 @@ const Header: React.FC = () => {
       />
 
       {/* Modal de Acceso Cliente */}
-      <AccesoCliente 
+      <AccesoCliente
         isOpen={showAccesoModal}
         onClose={() => setShowAccesoModal(false)}
+      />
+
+      {/* Notificación de sesión expirada */}
+      <SessionExpiredNotification
+        show={showSessionExpiredNotification}
+        onClose={() => setShowSessionExpiredNotification(false)}
       />
     </>
   );
