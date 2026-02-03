@@ -26,8 +26,6 @@ export interface Categoria {
 }
 
 const Header: React.FC = () => {
-  console.log('🏁 Header montado/renderizado');
-
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [expandedSubCategory, setExpandedSubCategory] = useState<string | null>(null);
@@ -57,28 +55,22 @@ const Header: React.FC = () => {
       // Verificar si la sesión expiró
       const sessionExpired = localStorage.getItem('session_expired');
       if (sessionExpired === 'true') {
-        console.log('🔍 Bandera session_expired detectada en localStorage');
-
         // Limpiar bandera inmediatamente
         localStorage.removeItem('session_expired');
-        console.log('🧹 Bandera session_expired limpiada');
 
         // Limpiar usuario del estado
         setUser(null);
 
         // Mostrar notificación
-        console.log('🔔 Mostrando notificación de sesión expirada...');
         setShowSessionExpiredNotification(true);
 
         // Abrir modal de login
-        console.log('🚪 Abriendo modal de login...');
         setShowAccesoModal(true);
 
         // Cerrar dropdown si estaba abierto
         setShowUserDropdown(false);
 
         // Redirigir a home
-        console.log('🔄 Redirigiendo a home...');
         navigate('/');
 
         return; // No continuar con el checkUser normal
@@ -106,42 +98,26 @@ const Header: React.FC = () => {
 
   // Escuchar evento de sesión expirada
   useEffect(() => {
-    console.log('🎧 Registrando listener para session-expired...');
-
     const handleSessionExpired = () => {
-      console.log('🔴 ¡EVENTO SESSION-EXPIRED RECIBIDO!');
-      console.log('📋 Estado actual:', {
-        user,
-        showAccesoModal,
-        showSessionExpiredNotification
-      });
-
       // Limpiar usuario del estado
-      console.log('🧹 Limpiando usuario del estado...');
       setUser(null);
 
       // Mostrar notificación
-      console.log('🔔 Mostrando notificación...');
       setShowSessionExpiredNotification(true);
 
       // Abrir modal de login automáticamente
-      console.log('🚪 Abriendo modal de login...');
       setShowAccesoModal(true);
 
       // Cerrar dropdown de usuario si estaba abierto
       setShowUserDropdown(false);
 
       // Redirigir a home
-      console.log('🔄 Ejecutando navigate("/")...');
       navigate('/');
-      console.log('✅ Navigate ejecutado');
     };
 
     window.addEventListener('session-expired', handleSessionExpired);
-    console.log('✅ Listener session-expired REGISTRADO correctamente');
 
     return () => {
-      console.log('❌ Removiendo listener session-expired...');
       window.removeEventListener('session-expired', handleSessionExpired);
     };
   }, [navigate]);

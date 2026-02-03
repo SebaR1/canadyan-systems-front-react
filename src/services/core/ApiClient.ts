@@ -71,21 +71,14 @@ export class ApiClient {
           localStorage.removeItem('user');
           localStorage.removeItem('auth_token');
 
-          console.log('🔴 SESIÓN EXPIRADA DETECTADA');
-          console.log('📍 Limpiando localStorage...');
-
           // Marcar que la sesión expiró para que el Header lo detecte
           localStorage.setItem('session_expired', 'true');
-          console.log('🏷️ Bandera session_expired establecida en localStorage');
 
           // Emitir evento para que otros componentes lo sepan
-          console.log('📡 Emitiendo evento session-expired...');
           window.dispatchEvent(new CustomEvent('session-expired'));
-          console.log('✅ Evento session-expired emitido correctamente');
 
           // Emitir evento storage manualmente (para mismo tab)
           window.dispatchEvent(new Event('storage'));
-          console.log('📡 Evento storage emitido');
 
           // NO redirigir - dejar que el Header maneje la redirección y notificación
 

@@ -4,7 +4,7 @@ import Header from '../../components/Header/Header';
 import Footer from '../../components/Footer/Footer';
 import NoImagePlaceholder from '../../components/NoImagePlaceholder';
 import apiManager from '../../services/ApiIndex';
-import { Producto } from '../../services/types';
+import { Producto, ProductoArchivo } from '../../services/types';
 
 interface CategoriaInfo {
   id: number;
@@ -30,6 +30,10 @@ const ProductDetail: React.FC = () => {
   const [imagenActual, setImagenActual] = useState(0);
   const [loadingImagenes, setLoadingImagenes] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+
+  // Estados para archivos descargables
+  const [archivos, setArchivos] = useState<ProductoArchivo[]>([]);
+  const [loadingArchivos, setLoadingArchivos] = useState(false);
 
   useEffect(() => {
     if (!id || !Number.isInteger(Number(id))) {
@@ -67,6 +71,29 @@ const ProductDetail: React.FC = () => {
     }
   };
 
+  const cargarArchivos = async (productoId: number) => {
+    try {
+      setLoadingArchivos(true);
+      const response = await apiManager.productoArchivos.listarArchivos(productoId);
+      if (response.success && response.data) {
+        setArchivos(response.data);
+      }
+    } catch (error) {
+      console.error('Error cargando archivos:', error);
+      setArchivos([]);
+    } finally {
+      setLoadingArchivos(false);
+    }
+  };
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
   const cargarProducto = async () => {
     try {
       setLoading(true);
@@ -79,8 +106,9 @@ const ProductDetail: React.FC = () => {
 
         if ((response.data as any).producto.id) {
           await cargarImagenes((response.data as any).producto.id);
+          await cargarArchivos((response.data as any).producto.id);
         }
-        
+
         // Si hay categoría, obtener información adicional
         if ((response.data as any).producto.categoria_id) {
           await cargarCategoriaInfo((response.data as any).producto.categoria_id);
@@ -372,7 +400,7 @@ const ProductDetail: React.FC = () => {
               <h2 className="text-xl font-bold text-gray-900 mb-4">
                 DESCRIPCIÓN
               </h2>
-              <p className="text-gray-600">
+              <p className="text-gray-600 whitespace-pre-wrap">
                 {producto.descripcion}
               </p>
             </div>
@@ -435,7 +463,77 @@ const ProductDetail: React.FC = () => {
                 {activeTab === 'descargas' && (
                   <div>
                     <h3 className="font-semibold text-gray-900 mb-4">Documentos y recursos</h3>
-                    <p className="text-gray-500">Centro de descargas en desarrollo.</p>
+                    {loadingArchivos ? (
+                      <div className="text-center py-8 text-gray-500">Cargando archivos...</div>
+                    ) : archivos.length > 0 ? (
+                      <div className="space-y-3">
+                        {archivos.map((archivo) => (
+                          <div
+                            key={archivo.id}
+                            className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                          >
+                            <div className="flex items-center space-x-4">
+                              {/* Ícono según tipo de archivo */}
+                              <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center">
+                                {archivo.tipo_archivo === 'pdf' && (
+                                  <svg className="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/>
+                                  </svg>
+                                )}
+                                {['doc', 'docx'].includes(archivo.tipo_archivo) && (
+                                  <svg className="w-8 h-8 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 7V3.5L18.5 9H13zM8 13h8v2H8zm0-3h4v2H8z"/>
+                                  </svg>
+                                )}
+                                {['xls', 'xlsx'].includes(archivo.tipo_archivo) && (
+                                  <svg className="w-8 h-8 text-green-500" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 7V3.5L18.5 9H13zM8 13h2v2H8zm3 0h2v2h-2zm3 0h2v2h-2zM8 17h2v2H8zm3 0h2v2h-2zm3 0h2v2h-2z"/>
+                                  </svg>
+                                )}
+                                {['jpg', 'jpeg', 'png', 'gif'].includes(archivo.tipo_archivo) && (
+                                  <svg className="w-8 h-8 text-purple-500" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M21 19V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/>
+                                  </svg>
+                                )}
+                                {!['pdf', 'doc', 'docx', 'xls', 'xlsx', 'jpg', 'jpeg', 'png', 'gif'].includes(archivo.tipo_archivo) && (
+                                  <svg className="w-8 h-8 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/>
+                                  </svg>
+                                )}
+                              </div>
+
+                              {/* Información del archivo */}
+                              <div>
+                                <h4 className="font-medium text-gray-900">
+                                  {archivo.nombre_personalizado || archivo.nombre_original}
+                                </h4>
+                                <p className="text-sm text-gray-500">
+                                  {archivo.tipo_archivo.toUpperCase()} · {formatBytes(archivo.tamanio_bytes)}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Botón de descarga */}
+                            <button
+                              onClick={() => apiManager.productoArchivos.descargarArchivo(archivo.id, archivo.nombre_personalizado ? `${archivo.nombre_personalizado}.${archivo.tipo_archivo}` : archivo.nombre_original)}
+                              className="px-4 py-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-colors flex items-center space-x-2 text-sm font-medium flex-shrink-0"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                              </svg>
+                              <span>Descargar</span>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-10">
+                        <svg className="w-14 h-14 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        <p className="text-gray-500">No hay archivos disponibles para este producto</p>
+                      </div>
+                    )}
                   </div>
                 )}
 

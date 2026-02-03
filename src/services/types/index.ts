@@ -52,7 +52,8 @@ export interface Producto {
   created_at: string;
   updated_at?: string;
   sku?: string;
-  imagen_principal_url?: string; 
+  imagen_principal_url?: string;
+  archivos?: ProductoArchivo[]; // Archivos descargables del producto
 }
 
 export interface ProductoCreacion {
@@ -195,6 +196,20 @@ export interface AtributoConValores {
 
 export interface FiltrosAtributos {
   [atributoId: string]: string[];
+}
+
+// Tipos para ProductoArchivo (archivos descargables)
+export interface ProductoArchivo {
+  id: number;
+  producto_id: number;
+  nombre_original: string;
+  nombre_personalizado?: string;
+  url: string;
+  tipo_archivo: string;
+  tamanio_bytes: number;
+  orden: number;
+  created_at: string;
+  updated_at?: string;
 }
 
 // Tipos para filtros comunes

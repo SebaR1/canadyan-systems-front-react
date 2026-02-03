@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Producto, Categoria, Atributo, ProductoAtributo } from '../../services/types';
 import ImageUploadManager, { ImageUploadManagerRef } from '../../components/ImageUploadManager/ImageUploadManager';
+import FileUploadManager, { FileUploadManagerRef } from '../../components/FileUploadManager/FileUploadManager';
 import { ProductoImagen } from '../../services/modules/ProductoImagenService';
 import apiManager from '../../services/ApiIndex';
 
@@ -61,16 +63,50 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
   const [hasPendingImages, setHasPendingImages] = useState(false);
 
   const imageUploadRef = useRef<ImageUploadManagerRef>(null);
+  const fileUploadRef = useRef<FileUploadManagerRef>(null);
+  const [hasPendingFiles, setHasPendingFiles] = useState(false);
+  const [errorNotification, setErrorNotification] = useState<string | null>(null);
+  const [successNotification, setSuccessNotification] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'info' | 'imagenes' | 'archivos'>('info');
+  const [mountedTabs, setMountedTabs] = useState<Record<string, boolean>>({ info: true });
+  const wasOpenRef = useRef(false);
+
+  // Auto-cerrar notificaciones después de 5 segundos
+  useEffect(() => {
+    if (errorNotification) {
+      const timer = setTimeout(() => setErrorNotification(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorNotification]);
+
+  useEffect(() => {
+    if (successNotification) {
+      const timer = setTimeout(() => setSuccessNotification(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successNotification]);
+
+  const handleTabChange = (tab: 'info' | 'imagenes' | 'archivos') => {
+    setActiveTab(tab);
+    if (!mountedTabs[tab]) {
+      setMountedTabs(prev => ({ ...prev, [tab]: true }));
+    }
+  };
 
   // Efecto para cargar datos cuando se abre el modal
   useEffect(() => {
     if (isOpen) {
-      loadCategorias();
-      loadAtributos();
-      
+      // Solo resetear pestaña cuando el modal se abre por primera vez, no al actualizar editing
+      if (!wasOpenRef.current) {
+        setActiveTab('info');
+        loadCategorias();
+        loadAtributos();
+      }
+      wasOpenRef.current = true;
+
       if (editing) {
         loadProductoAtributos(editing.id);
-        loadImagenes(editing.id);  // ← AGREGAR ESTA LÍNEA
+        loadImagenes(editing.id);
         setFormData({
           nombre: editing.nombre || '',
           descripcion: editing.descripcion || '',
@@ -83,6 +119,8 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
       } else {
         resetForm();
       }
+    } else {
+      wasOpenRef.current = false;
     }
   }, [isOpen, editing]);
 
@@ -388,12 +426,23 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
           await imageUploadRef.current.uploadPendingImages();
         } catch (error) {
           console.error('Error al subir imágenes:', error);
-          alert('Error al subir las imágenes. Por favor intenta nuevamente.');
-          return; // Detener si falla la subida de imágenes
+          setErrorNotification('Error al subir las imágenes. Por favor intenta nuevamente.');
+          return;
         }
       }
 
-      // 2. Luego actualizar el producto
+      // 2. Subir archivos pendientes si los hay
+      if (hasPendingFiles && fileUploadRef.current && editing?.id) {
+        try {
+          await fileUploadRef.current.uploadPendingFiles();
+        } catch (error: any) {
+          console.error('Error al subir archivos:', error);
+          setErrorNotification(error.message || 'Error al subir archivos');
+          return;
+        }
+      }
+
+      // 3. Luego actualizar el producto
       const productoData = {
         nombre: formData.nombre.trim(),
         descripcion: formData.descripcion.trim(),
@@ -410,8 +459,14 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
         producto: productoData,
         atributos
       });
-    } catch (error) {
+
+      // Mostrar notificación de éxito al editar
+      if (editing) {
+        setSuccessNotification('Producto actualizado correctamente');
+      }
+    } catch (error: any) {
       console.error('Error en modal:', error);
+      setErrorNotification(error.message || 'Error al guardar producto');
     } finally {
       setLoading(false);
     }
@@ -425,6 +480,7 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
   const atributosDisponibles = atributos.filter(attr => !atributosSeleccionados.includes(attr.id));
 
   return (
+    <>
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
       <div className="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white max-h-screen overflow-y-auto">
         <div className="mt-3">
@@ -446,7 +502,48 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
 
           {/* Formulario */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {/* Pestañas - solo cuando editamos producto existente */}
+            {editing && editing.id && (
+              <div className="flex space-x-1 border-b border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('info')}
+                  className={`pb-2 px-4 text-sm font-medium transition-colors ${
+                    activeTab === 'info'
+                      ? 'border-b-2 border-orange-500 text-orange-600'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Información Básica
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('imagenes')}
+                  className={`pb-2 px-4 text-sm font-medium transition-colors ${
+                    activeTab === 'imagenes'
+                      ? 'border-b-2 border-orange-500 text-orange-600'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Imágenes del Producto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('archivos')}
+                  className={`pb-2 px-4 text-sm font-medium transition-colors ${
+                    activeTab === 'archivos'
+                      ? 'border-b-2 border-orange-500 text-orange-600'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  Archivos y Documentos
+                </button>
+              </div>
+            )}
+
+            {/* Contenido pestaña: Información Básica */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" style={editing && editing.id && activeTab !== 'info' ? { display: 'none' } : undefined}>
               
               {/* Columna izquierda - Datos básicos */}
               <div className="space-y-4">
@@ -480,7 +577,7 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
                   </label>
                   <textarea
                     id="descripcion"
-                    rows={3}
+                    rows={6}
                     value={formData.descripcion}
                     onChange={(e) => setFormData({...formData, descripcion: e.target.value})}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent ${
@@ -722,11 +819,9 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
               </div>
             </div>
 
-            {/* Sección de Imágenes */}
-            <div className="border-t pt-6">
-              <h4 className="font-medium text-gray-900 mb-4">Imágenes del Producto</h4>
-              
-              {editing && editing.id ? (
+            {/* Pestaña: Imágenes del Producto - lazy mount */}
+            {editing && editing.id && mountedTabs.imagenes && (
+              <div className="pt-2" style={{ display: activeTab === 'imagenes' ? 'block' : 'none' }}>
                 <ImageUploadManager
                   ref={imageUploadRef}
                   productoId={editing.id}
@@ -741,13 +836,30 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
                     setHasPendingImages(hasPreviews);
                   }}
                 />
-              ) : (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 text-sm text-yellow-800">
-                  <p className="font-medium mb-1">⚠️ Guarda el producto primero</p>
-                  <p>Las imágenes se pueden agregar después de crear el producto</p>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {/* Pestaña: Archivos y Documentos - lazy mount */}
+            {editing && editing.id && mountedTabs.archivos && (
+              <div className="pt-2" style={{ display: activeTab === 'archivos' ? 'block' : 'none' }}>
+                <FileUploadManager
+                  ref={fileUploadRef}
+                  productoId={editing.id}
+                  onPendingFilesChange={setHasPendingFiles}
+                  onError={setErrorNotification}
+                />
+              </div>
+            )}
+
+            {/* Aviso para producto nuevo */}
+            {(!editing || !editing.id) && (
+              <div className="flex items-center gap-1.5 text-xs text-amber-600 pt-2">
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Las imágenes y archivos se pueden agregar después de crear el producto</span>
+              </div>
+            )}
 
             {/* Botones */}
             <div className="flex items-center justify-end space-x-3 pt-6 border-t">
@@ -778,6 +890,65 @@ const ProductoModal: React.FC<ProductoModalProps> = ({
         </div>
       </div>
     </div>
+
+      {/* Notificación de éxito - portal para evitar stacking context del modal */}
+      {successNotification && createPortal(
+        <div className="fixed top-20 right-4 z-[60] animate-slide-in">
+          <div className="bg-white border-l-4 border-green-500 px-6 py-4 rounded-lg shadow-2xl max-w-md">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-semibold text-gray-900">Éxito</h3>
+                <p className="mt-1 text-sm text-gray-600">{successNotification}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSuccessNotification(null)}
+                className="ml-4 flex-shrink-0 inline-flex text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Notificación de error - portal para evitar stacking context del modal */}
+      {errorNotification && createPortal(
+        <div className="fixed top-20 right-4 z-[60] animate-slide-in">
+          <div className="bg-white border-l-4 border-red-500 px-6 py-4 rounded-lg shadow-2xl max-w-md">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-semibold text-gray-900">Error</h3>
+                <p className="mt-1 text-sm text-gray-600">{errorNotification}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setErrorNotification(null)}
+                className="ml-4 flex-shrink-0 inline-flex text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 };
 

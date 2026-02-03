@@ -15,6 +15,160 @@ interface ProductosResponse {
   };
 }
 
+// Helpers puras fuera del componente para evitar recreación en cada render
+function formatDate(dateString: string) {
+  if (!dateString) return '-';
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-AR', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+  } catch {
+    return '-';
+  }
+}
+
+function formatPrice(price: number) {
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS'
+  }).format(price);
+}
+
+
+// Fila memoizada: solo re-renderea cuando sus props efectivas cambian
+interface ProductoRowProps {
+  producto: Producto;
+  isChangingStatus: boolean;
+  isChangingFeatured: boolean;
+  onEdit: (producto: Producto) => void;
+  onToggleStatus: (id: number, activo: boolean) => void;
+  onToggleFeatured: (id: number, destacado: boolean) => void;
+}
+
+const ProductoRow = React.memo(({
+  producto,
+  isChangingStatus,
+  isChangingFeatured,
+  onEdit,
+  onToggleStatus,
+  onToggleFeatured
+}: ProductoRowProps) => {
+  return (
+    <tr className={producto.activo ? 'hover:bg-gray-50' : 'bg-gray-200 hover:bg-gray-300'}>
+      <td className="px-4 py-4 whitespace-nowrap" style={{ maxWidth: '240px' }}>
+        <div className="flex items-center">
+          {producto.imagen_url && (
+            <img
+              src={producto.imagen_url}
+              alt={producto.nombre}
+              className="h-10 w-10 rounded-full object-cover mr-3 flex-shrink-0"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+              }}
+            />
+          )}
+          <div className="min-w-0">
+            <div className="text-sm font-medium text-gray-900 truncate">
+              <Link
+                to={`/producto/${producto.id}`}
+                className="hover:text-orange-600"
+              >
+                {producto.nombre}
+              </Link>
+            </div>
+            <div className="text-xs text-gray-500 truncate">
+              {producto.descripcion}
+            </div>
+          </div>
+        </div>
+      </td>
+      <td className="px-4 py-4 whitespace-nowrap">
+        <div className="text-sm text-gray-900">
+          {producto.categoria_nombre || '-'}
+        </div>
+      </td>
+      <td className="px-4 py-4 whitespace-nowrap">
+        <div className="text-sm font-medium text-gray-900">
+          {formatPrice(producto.precio)}
+        </div>
+      </td>
+      <td className="px-4 py-4 whitespace-nowrap">
+        <div className={`text-sm font-medium ${
+          producto.stock > 0 ? 'text-green-600' : 'text-red-600'
+        }`}>
+          {producto.stock}
+        </div>
+      </td>
+      <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+        {formatDate(producto.created_at)}
+      </td>
+      <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
+        <div className="flex items-center gap-1.5">
+          {/* Estrella destacado */}
+          <button
+            onClick={() => onToggleFeatured(producto.id, producto.destacado)}
+            disabled={isChangingFeatured}
+            className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
+              producto.destacado
+                ? 'text-yellow-500 hover:text-yellow-600'
+                : 'text-gray-300 hover:text-yellow-400'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+            title={producto.destacado ? 'Quitar de destacados' : 'Marcar como destacado'}
+          >
+            {isChangingFeatured ? (
+              <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <svg className="w-4 h-4" fill={producto.destacado ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+              </svg>
+            )}
+          </button>
+          {/* Editar */}
+          <button
+            onClick={() => onEdit(producto)}
+            className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200"
+          >
+            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Editar
+          </button>
+          {/* Activar/Desactivar */}
+          <button
+            onClick={() => onToggleStatus(producto.id, producto.activo)}
+            disabled={isChangingStatus}
+            className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium ${
+              producto.activo
+                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                : 'bg-green-100 text-green-700 hover:bg-green-200'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
+          >
+            {isChangingStatus ? (
+              <>
+                <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1"></div>
+                Cambiando...
+              </>
+            ) : (
+              producto.activo ? 'Desactivar' : 'Activar'
+            )}
+          </button>
+          {/* Ver producto */}
+          <Link
+            to={`/producto/${producto.id}`}
+            className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+          >
+            Ver
+          </Link>
+        </div>
+      </td>
+    </tr>
+  );
+});
+
 const VerProductos: React.FC = () => {
   const navigate = useNavigate();
   
@@ -22,8 +176,8 @@ const VerProductos: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [searchTerm, setSearchTerm] = useState('');
   const [activeSearchTerm, setActiveSearchTerm] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [totalPages, setTotalPages] = useState(0);
   const [totalProductos, setTotalProductos] = useState(0);
   const [changingStatus, setChangingStatus] = useState<number | null>(null);
@@ -47,6 +201,7 @@ const VerProductos: React.FC = () => {
   const observerTarget = useRef<HTMLDivElement>(null);
 
   const [changingFeatured, setChangingFeatured] = useState<number | null>(null);
+  const changingFeaturedRef = useRef<number | null>(null);
 
   const productsPerPage = 10;
 
@@ -229,19 +384,19 @@ const VerProductos: React.FC = () => {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentPage(1);
-    setActiveSearchTerm(searchTerm);
+    setActiveSearchTerm(searchInputRef.current?.value || '');
   };
 
   const handleClearSearch = () => {
-    setSearchTerm('');
+    if (searchInputRef.current) searchInputRef.current.value = '';
     setActiveSearchTerm('');
     setCurrentPage(1);
   };
 
-  const toggleProductStatus = async (productId: number, currentStatus: boolean) => {
+  const toggleProductStatus = useCallback(async (productId: number, currentStatus: boolean) => {
     try {
       setChangingStatus(productId);
-      
+
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=toggle&id=${productId}`, {
         method: 'PATCH',
         credentials: 'include',
@@ -251,13 +406,13 @@ const VerProductos: React.FC = () => {
         },
         body: JSON.stringify({ activo: !currentStatus })
       });
-      
+
       const result = await response.json();
-      
+
       if (result.success) {
-        setProductos(prev => 
-          prev.map(p => 
-            p.id === productId 
+        setProductos(prev =>
+          prev.map(p =>
+            p.id === productId
               ? { ...p, activo: !currentStatus }
               : p
           )
@@ -271,14 +426,15 @@ const VerProductos: React.FC = () => {
     } finally {
       setChangingStatus(null);
     }
-  };
+  }, []);
 
-  const toggleProductFeatured = async (id: number, currentStatus: boolean) => {
-    if (changingFeatured !== null) return;
-    
+  const toggleProductFeatured = useCallback(async (id: number, currentStatus: boolean) => {
+    if (changingFeaturedRef.current !== null) return;
+
+    changingFeaturedRef.current = id;
+    setChangingFeatured(id);
+
     try {
-      setChangingFeatured(id);
-      
       const response = await fetch(
         `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=toggle-featured&id=${id}`,
         {
@@ -290,13 +446,12 @@ const VerProductos: React.FC = () => {
           }
         }
       );
-      
+
       const result = await response.json();
-      
+
       if (result.success) {
-        // Actualizar estado local
-        setProductos(productos.map(p => 
-          p.id === id 
+        setProductos(prev => prev.map(p =>
+          p.id === id
             ? { ...p, destacado: !currentStatus }
             : p
         ));
@@ -307,9 +462,10 @@ const VerProductos: React.FC = () => {
       console.error('Error cambiando destacado:', err);
       setError('Error de conexión al cambiar destacado');
     } finally {
+      changingFeaturedRef.current = null;
       setChangingFeatured(null);
     }
-  };
+  }, []);
 
   // Manejar creación/edición de producto
   const handleProductoSubmit = async (data: any) => {
@@ -366,10 +522,17 @@ const VerProductos: React.FC = () => {
         }
       }
 
-      // Recargar productos y cerrar modal
+      // Recargar productos
       await loadProductos(true);
-      setShowProductoModal(false);
-      setEditingProducto(null);
+
+      // Solo cerrar modal al crear producto nuevo
+      if (!isEditing) {
+        setShowProductoModal(false);
+        setEditingProducto(null);
+      } else {
+        // Actualizar editingProducto con los datos guardados para que el modal se recargue
+        setEditingProducto(prev => prev ? { ...prev, ...producto } : prev);
+      }
       
     } catch (error: any) {
       console.error('Error guardando producto:', error);
@@ -384,10 +547,10 @@ const VerProductos: React.FC = () => {
   };
 
   // Manejar apertura del modal para editar
-  const handleEditProducto = (producto: Producto) => {
+  const handleEditProducto = useCallback((producto: Producto) => {
     setEditingProducto(producto);
     setShowProductoModal(true);
-  };
+  }, []);
 
   // Cerrar modal
   const handleCloseModal = () => {
@@ -395,36 +558,6 @@ const VerProductos: React.FC = () => {
     setEditingProducto(null);
   };
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return '-';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('es-AR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-    } catch (error) {
-      return '-';
-    }
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(price);
-  };
-
-  const getStatusClass = (activo: boolean) => {
-    return activo
-      ? 'bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium'
-      : 'bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-medium';
-  };
-
-  const truncateText = (text: string, maxLength: number = 50) => {
-    return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
-  };
 
   // Mostrar loading mientras carga
   if (loading && !accessDenied) {
@@ -505,9 +638,8 @@ const VerProductos: React.FC = () => {
                 {/* Búsqueda */}
                 <form onSubmit={handleSearch} className="flex space-x-2">
                   <input
+                    ref={searchInputRef}
                     type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
                     placeholder="Buscar por nombre o descripción..."
                     className="flex-1 min-w-0 px-4 py-2 border border-gray-300 rounded-md focus:ring-orange-500 focus:border-orange-500"
                   />
@@ -679,7 +811,7 @@ const VerProductos: React.FC = () => {
           {/* Tabla de productos */}
           <div className="bg-white shadow rounded-lg overflow-hidden">
             {loading ? (
-              <div className="p-8 text-center">
+              <div className="p-8 text-center flex flex-col items-center justify-center" style={{ minHeight: '300px' }}>
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto"></div>
                 <p className="mt-2 text-gray-600">Cargando productos...</p>
               </div>
@@ -701,149 +833,37 @@ const VerProductos: React.FC = () => {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[240px]">
                           Producto
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Categoría
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Precio
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Stock
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Estado
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Destacado
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Fecha
                         </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Acciones
                         </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {productos.map((producto) => (
-                        <tr key={producto.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              {producto.imagen_url && (
-                                <img 
-                                  src={producto.imagen_url} 
-                                  alt={producto.nombre}
-                                  className="h-10 w-10 rounded-full object-cover mr-4"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.style.display = 'none';
-                                  }}
-                                />
-                              )}
-                              <div>
-                                <div className="text-sm font-medium text-gray-900">
-                                  <Link 
-                                    to={`/producto/${producto.id}`}
-                                    className="hover:text-orange-600"
-                                  >
-                                    {truncateText(producto.nombre, 30)}
-                                  </Link>
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                  {truncateText(producto.descripcion, 40)}
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              {producto.categoria_nombre || '-'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {formatPrice(producto.precio)}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className={`text-sm font-medium ${
-                              producto.stock > 0 ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {producto.stock}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={getStatusClass(producto.activo)}>
-                              {producto.activo ? 'Activo' : 'Inactivo'}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-center">
-                            <button
-                              onClick={() => toggleProductFeatured(producto.id, producto.destacado)}
-                              disabled={changingFeatured === producto.id}
-                              className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors ${
-                                producto.destacado
-                                  ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
-                                  : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
-                              } disabled:opacity-50 disabled:cursor-not-allowed`}
-                              title={producto.destacado ? 'Quitar de destacados' : 'Marcar como destacado'}
-                            >
-                              {changingFeatured === producto.id ? (
-                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                              ) : (
-                                <svg className="w-5 h-5" fill={producto.destacado ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                                </svg>
-                              )}
-                            </button>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {formatDate(producto.created_at)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                            {/* Botón Editar */}
-                            <button
-                              onClick={() => handleEditProducto(producto)}
-                              className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200"
-                            >
-                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                              Editar
-                            </button>
-
-                            {/* Botón cambiar estado */}
-                            <button
-                              onClick={() => toggleProductStatus(producto.id, producto.activo)}
-                              disabled={changingStatus === producto.id}
-                              className={`inline-flex items-center px-3 py-1 rounded-md text-xs font-medium ${
-                                producto.activo
-                                  ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                  : 'bg-green-100 text-green-700 hover:bg-green-200'
-                              } disabled:opacity-50 disabled:cursor-not-allowed`}
-                            >
-                              {changingStatus === producto.id ? (
-                                <>
-                                  <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-1"></div>
-                                  Cambiando...
-                                </>
-                              ) : (
-                                producto.activo ? 'Desactivar' : 'Activar'
-                              )}
-                            </button>
-
-                            {/* Botón ver detalle */}
-                            <Link
-                              to={`/producto/${producto.id}`}
-                              className="inline-flex items-center px-3 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
-                            >
-                              Ver
-                            </Link>
-                          </td>
-                        </tr>
+                        <ProductoRow
+                          key={producto.id}
+                          producto={producto}
+                          isChangingStatus={changingStatus === producto.id}
+                          isChangingFeatured={changingFeatured === producto.id}
+                          onEdit={handleEditProducto}
+                          onToggleStatus={toggleProductStatus}
+                          onToggleFeatured={toggleProductFeatured}
+                        />
                       ))}
                     </tbody>
                   </table>
