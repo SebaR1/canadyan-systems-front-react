@@ -18,6 +18,16 @@ interface UsuariosResponse {
   };
 }
 
+const formatCuit = (value: string): string => {
+  const clean = (value || '').replace(/\D/g, '');
+  if (clean.length > 2 && clean.length <= 10) {
+    return clean.slice(0, 2) + '-' + clean.slice(2);
+  } else if (clean.length === 11) {
+    return clean.slice(0, 2) + '-' + clean.slice(2, 10) + '-' + clean.slice(10, 11);
+  }
+  return clean;
+};
+
 const VerUsuarios: React.FC = () => {
   const navigate = useNavigate();
   
@@ -159,7 +169,7 @@ const VerUsuarios: React.FC = () => {
           setShowModal(false);
           setEditingUser(null);
         } else {
-          throw new Error(result.error || 'Error al actualizar usuario');
+          throw new Error(result.message || 'Error al actualizar usuario');
         }
       } else {
         // CREATE
@@ -177,7 +187,8 @@ const VerUsuarios: React.FC = () => {
             ciudad: data.ciudad,
             direccion: data.direccion,
             provincia: data.provincia,
-            tipoUsuario: data.tipo_usuario_id
+            tipoUsuario: data.tipo_usuario_id,
+            password: data.password
           })
         });
 
@@ -186,7 +197,7 @@ const VerUsuarios: React.FC = () => {
           await loadUsuarios();
           return result.data.generated_password;
         } else {
-          throw new Error(result.error || 'Error al crear usuario');
+          throw new Error(result.message || 'Error al crear usuario');
         }
       }
     } catch (error) {
@@ -415,7 +426,7 @@ const VerUsuarios: React.FC = () => {
                               {usuario.razon_social_empresa || '-'}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {usuario.cuit || '-'}
+                              {usuario.cuit ? formatCuit(usuario.cuit) : '-'}
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -423,8 +434,13 @@ const VerUsuarios: React.FC = () => {
                               {usuario.celular || '-'}
                             </div>
                             <div className="text-sm text-gray-500">
-                              {usuario.ciudad ? `${usuario.ciudad}, ${usuario.provincia}` : '-'}
+                              {usuario.direccion || (usuario.ciudad ? `${usuario.ciudad}, ${usuario.provincia}` : '-')}
                             </div>
+                            {usuario.direccion && (
+                              <div className="text-xs text-gray-400">
+                                {usuario.ciudad ? `${usuario.ciudad}, ${usuario.provincia}` : ''}
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={getTypeClass(usuario.tipo_usuario_id)}>

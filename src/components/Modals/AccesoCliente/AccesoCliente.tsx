@@ -42,7 +42,8 @@ const AccesoCliente: React.FC<AccesoClienteProps> = ({ isOpen, onClose }) => {
       // Preparar datos de login
       const loginData: UsuarioLogin = {
         email: formData.email,
-        password: formData.password
+        password: formData.password,
+        recordarPassword: formData.recordarPassword
       };
 
       // Usar el servicio de usuarios para hacer login
@@ -67,7 +68,22 @@ const AccesoCliente: React.FC<AccesoClienteProps> = ({ isOpen, onClose }) => {
         window.dispatchEvent(new Event('storage'));
         
         setSuccess('¡Login exitoso!');
-        
+
+        // Si marcó "Recordar contraseña", pedir al navegador que guarde las credenciales
+        if (formData.recordarPassword && window.navigator.credentials && (window as any).PasswordCredential) {
+          try {
+            const CredentialClass = (window as any).PasswordCredential;
+            const credential = new CredentialClass({
+              id: formData.email,
+              password: formData.password,
+              name: usuario.nombre || usuario.email || formData.email
+            });
+            navigator.credentials.store(credential);
+          } catch (e) {
+            // No afecta la funcionalidad si falla
+          }
+        }
+
         // Cerrar modal después de un breve delay
         setTimeout(() => {
           onClose();
@@ -197,6 +213,7 @@ const AccesoCliente: React.FC<AccesoClienteProps> = ({ isOpen, onClose }) => {
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
+                  autoComplete="email"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 transition-colors text-sm"
                   required
                   disabled={isLoading}
@@ -214,6 +231,7 @@ const AccesoCliente: React.FC<AccesoClienteProps> = ({ isOpen, onClose }) => {
                     name="password"
                     value={formData.password}
                     onChange={handleInputChange}
+                    autoComplete="current-password"
                     className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 transition-colors text-sm"
                     required
                     disabled={isLoading}

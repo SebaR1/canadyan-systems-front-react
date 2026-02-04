@@ -47,9 +47,8 @@ export class ApiClient {
 
       clearTimeout(timeoutId);
 
-      // ⭐ NUEVO: Detectar sesión expirada ANTES de parsear el body completo
+      // Detectar sesión expirada ANTES de parsear el body completo
       if (response.status === 401 || response.status === 403) {
-        // Parsear la respuesta para verificar el mensaje
         let errorData;
         try {
           const contentType = response.headers.get('content-type');
@@ -57,10 +56,9 @@ export class ApiClient {
             errorData = await response.json();
           }
         } catch (e) {
-          // Si falla el parse, continuar con el flujo normal
+          // Si falla el parse, continuar con errorData undefined
         }
 
-        // Verificar si es error de autenticación
         const message = errorData?.message || '';
         if (message.toLowerCase().includes('acceso denegado') ||
             message.toLowerCase().includes('no autorizado') ||
@@ -88,11 +86,18 @@ export class ApiClient {
             error: 'Sesión expirada. Redirigiendo al login...',
           };
         }
+
+        // No es sesión expirada, retornar el error ya parseado sin leer el body otra vez
+        return {
+          success: false,
+          error: errorData?.message || errorData?.error || `HTTP ${response.status}: ${response.statusText}`,
+          data: errorData,
+        };
       }
 
       let data;
       const contentType = response.headers.get('content-type');
-      
+
       if (contentType && contentType.includes('application/json')) {
         data = await response.json();
       } else {

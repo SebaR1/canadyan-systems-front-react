@@ -8,6 +8,7 @@ import Catalogo from './pages/Catalogo/Catalogo';
 import ProductDetail from './pages/ProductDetail/ProductDetail';
 import Contacto from './pages/Contacto/Contacto';
 import Perfil from './pages/Perfil/Perfil';
+import ResetPassword from './pages/ResetPassword/ResetPassword';
 
 // Admin Pages
 import VerUsuarios from './pages/Admin/VerUsuarios';
@@ -31,6 +32,7 @@ function App() {
         {/* NUEVA RUTA: Vista de producto individual */}
         <Route path="/producto/:id" element={<ProductDetail />} />
         
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/contacto" element={<Contacto />} />
         <Route path="/perfil" element={<Perfil />} />
 

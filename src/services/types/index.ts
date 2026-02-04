@@ -28,6 +28,7 @@ export interface UsuarioRegistro {
 export interface UsuarioLogin {
   email: string;
   password: string;
+  recordarPassword?: boolean;
 }
 
 export interface UsuarioActualizacion {

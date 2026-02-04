@@ -13,6 +13,8 @@ interface UsuarioFormData {
   direccion: string;
   provincia: string;
   tipo_usuario_id: number;
+  password: string;
+  passwordConfirm: string;
 }
 
 interface UsuarioModalProps {
@@ -22,6 +24,16 @@ interface UsuarioModalProps {
   editing?: Usuario | null;
   tiposUsuario: TipoUsuario[];
 }
+
+const formatCuit = (value: string): string => {
+  const clean = value.replace(/\D/g, '');
+  if (clean.length > 2 && clean.length <= 10) {
+    return clean.slice(0, 2) + '-' + clean.slice(2);
+  } else if (clean.length === 11) {
+    return clean.slice(0, 2) + '-' + clean.slice(2, 10) + '-' + clean.slice(10, 11);
+  }
+  return clean;
+};
 
 const PROVINCIAS = [
   'Buenos Aires',
@@ -67,13 +79,18 @@ const UsuarioModal: React.FC<UsuarioModalProps> = ({
     ciudad: '',
     direccion: '',
     provincia: 'Buenos Aires',
-    tipo_usuario_id: 1
+    tipo_usuario_id: 1,
+    password: '',
+    passwordConfirm: ''
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
   const [passwordCopied, setPasswordCopied] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
 
   useEffect(() => {
     if (editing) {
@@ -81,13 +98,15 @@ const UsuarioModal: React.FC<UsuarioModalProps> = ({
         nombre: editing.nombre || '',
         apellido: editing.apellido || '',
         razonSocialEmpresa: editing.razon_social_empresa || '',
-        cuit: editing.cuit || '',
+        cuit: formatCuit(editing.cuit || ''),
         correoElectronico: editing.correo_electronico || '',
         celular: editing.celular || '',
         ciudad: editing.ciudad || '',
         direccion: editing.direccion || '',
         provincia: editing.provincia || 'Buenos Aires',
-        tipo_usuario_id: editing.tipo_usuario_id || 1
+        tipo_usuario_id: editing.tipo_usuario_id || 1,
+        password: '',
+        passwordConfirm: ''
       });
       setGeneratedPassword(null);
     } else {
@@ -101,12 +120,17 @@ const UsuarioModal: React.FC<UsuarioModalProps> = ({
         ciudad: '',
         direccion: '',
         provincia: 'Buenos Aires',
-        tipo_usuario_id: 1
+        tipo_usuario_id: 1,
+        password: '',
+        passwordConfirm: ''
       });
       setGeneratedPassword(null);
     }
     setErrors({});
+    setSubmitError(null);
     setPasswordCopied(false);
+    setShowPassword(false);
+    setShowPasswordConfirm(false);
   }, [editing, isOpen]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -114,16 +138,8 @@ const UsuarioModal: React.FC<UsuarioModalProps> = ({
 
     if (name === 'cuit') {
       const cleanValue = value.replace(/\D/g, '');
-      let formattedValue = cleanValue;
-
-      if (cleanValue.length > 2 && cleanValue.length <= 10) {
-        formattedValue = cleanValue.slice(0, 2) + '-' + cleanValue.slice(2);
-      } else if (cleanValue.length === 11) {
-        formattedValue = cleanValue.slice(0, 2) + '-' + cleanValue.slice(2, 10) + '-' + cleanValue.slice(10, 11);
-      }
-
       if (cleanValue.length <= 11) {
-        setFormData(prev => ({ ...prev, [name]: formattedValue }));
+        setFormData(prev => ({ ...prev, [name]: formatCuit(cleanValue) }));
       }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
@@ -132,6 +148,7 @@ const UsuarioModal: React.FC<UsuarioModalProps> = ({
     if (errors[name]) {
       setErrors(prev => ({ ...prev, [name]: '' }));
     }
+    if (submitError) setSubmitError(null);
   };
 
   const validateForm = (): boolean => {
@@ -156,12 +173,24 @@ const UsuarioModal: React.FC<UsuarioModalProps> = ({
       newErrors.correoElectronico = 'El email no es válido';
     }
 
+    if (!editing) {
+      if (!formData.password.trim()) {
+        newErrors.password = 'La contraseña es requerida';
+      } else if (formData.password.length < 6) {
+        newErrors.password = 'La contraseña debe tener al menos 6 caracteres';
+      }
+      if (formData.password !== formData.passwordConfirm) {
+        newErrors.passwordConfirm = 'Las contraseñas no coinciden';
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
 
     if (!validateForm()) return;
 
@@ -174,8 +203,8 @@ const UsuarioModal: React.FC<UsuarioModalProps> = ({
       } else {
         onClose();
       }
-    } catch (error) {
-      console.error('Error al guardar usuario:', error);
+    } catch (error: any) {
+      setSubmitError(error.message || 'Error al guardar usuario');
     } finally {
       setIsSubmitting(false);
     }
@@ -283,6 +312,17 @@ const UsuarioModal: React.FC<UsuarioModalProps> = ({
           </div>
 
           <form onSubmit={handleSubmit} className="px-6 py-4">
+            {submitError && (
+              <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm">
+                <div className="flex items-center">
+                  <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {submitError}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
               <div>
@@ -431,10 +471,72 @@ const UsuarioModal: React.FC<UsuarioModalProps> = ({
             </div>
 
             {!editing && (
-              <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <p className="text-sm text-blue-800">
-                  Se generará automáticamente una contraseña temporal para el nuevo usuario.
-                </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                {/* Contraseña */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Contraseña <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      name="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      autoComplete="new-password"
+                      className={`w-full px-3 py-2 pr-10 border ${errors.password ? 'border-red-300' : 'border-gray-300'} rounded-md focus:ring-orange-500 focus:border-orange-500`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showPassword ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0zm6.364-1.318a11.955 11.955 0 01-22.728 0M15 12a3 3 0 11-6 0" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password}</p>}
+                </div>
+
+                {/* Confirmar contraseña */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirmar contraseña <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPasswordConfirm ? "text" : "password"}
+                      name="passwordConfirm"
+                      value={formData.passwordConfirm}
+                      onChange={handleInputChange}
+                      autoComplete="new-password"
+                      className={`w-full px-3 py-2 pr-10 border ${errors.passwordConfirm ? 'border-red-300' : 'border-gray-300'} rounded-md focus:ring-orange-500 focus:border-orange-500`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordConfirm(!showPasswordConfirm)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showPasswordConfirm ? (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0zm6.364-1.318a11.955 11.955 0 01-22.728 0M15 12a3 3 0 11-6 0" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  {errors.passwordConfirm && <p className="mt-1 text-xs text-red-600">{errors.passwordConfirm}</p>}
+                </div>
               </div>
             )}
 
