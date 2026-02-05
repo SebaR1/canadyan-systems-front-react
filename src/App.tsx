@@ -9,6 +9,7 @@ import ProductDetail from './pages/ProductDetail/ProductDetail';
 import Contacto from './pages/Contacto/Contacto';
 import Perfil from './pages/Perfil/Perfil';
 import ResetPassword from './pages/ResetPassword/ResetPassword';
+import Favoritos from './pages/Favoritos/Favoritos';
 
 // Admin Pages
 import VerUsuarios from './pages/Admin/VerUsuarios';
@@ -33,6 +34,7 @@ function App() {
         <Route path="/producto/:id" element={<ProductDetail />} />
         
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/favoritos" element={<Favoritos />} />
         <Route path="/contacto" element={<Contacto />} />
         <Route path="/perfil" element={<Perfil />} />
 

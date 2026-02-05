@@ -96,6 +96,13 @@ const Header: React.FC = () => {
     return () => window.removeEventListener('storage', checkUser);
   }, [navigate]);
 
+  // Escuchar evento para abrir modal de login (usado por botón favoritos cuando no hay sesión)
+  useEffect(() => {
+    const handleOpenLogin = () => setShowAccesoModal(true);
+    window.addEventListener('open-login-modal', handleOpenLogin);
+    return () => window.removeEventListener('open-login-modal', handleOpenLogin);
+  }, []);
+
   // Escuchar evento de sesión expirada
   useEffect(() => {
     const handleSessionExpired = () => {
@@ -314,7 +321,7 @@ const Header: React.FC = () => {
                       </div>
                       
                       <div className="py-1">
-                        <button 
+                        <button
                           className="w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors"
                           onClick={() => {
                             setShowUserDropdown(false);
@@ -323,7 +330,17 @@ const Header: React.FC = () => {
                         >
                           👤 Mi Perfil
                         </button>
-                        
+
+                        <button
+                          className="w-full text-left px-3 py-2 hover:bg-gray-100 transition-colors"
+                          onClick={() => {
+                            setShowUserDropdown(false);
+                            navigate('/favoritos');
+                          }}
+                        >
+                          ❤️ Mis Favoritos
+                        </button>
+
                         {/* Menú de Admin - Solo si es admin */}
                         {isAdmin() && (
                           <>

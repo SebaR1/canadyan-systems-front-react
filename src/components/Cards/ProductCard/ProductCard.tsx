@@ -10,6 +10,8 @@ interface ProductCardProps {
   stock?: number;
   onVerMas?: () => void;
   className?: string;
+  isFavorito?: boolean;
+  onToggleFavorito?: () => void;
 }
 
 const ProductCard: React.FC<ProductCardProps> = ({
@@ -20,7 +22,9 @@ const ProductCard: React.FC<ProductCardProps> = ({
   price,
   stock = 0,
   onVerMas,
-  className = ""
+  className = "",
+  isFavorito = false,
+  onToggleFavorito
 }) => {
   const navigate = useNavigate();
 
@@ -82,14 +86,32 @@ const ProductCard: React.FC<ProductCardProps> = ({
         {price}
       </div>
 
-      {/* Botón VER MÁS */}
-      <div className="flex justify-center">
+      {/* Botones: VER MÁS + Favorito */}
+      <div className="flex justify-center items-center gap-2">
         <button
           onClick={handleVerMas}
           className="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-semibold py-2 px-6 rounded-full transition-colors duration-200 touch-manipulation"
         >
           VER MÁS
         </button>
+
+        {onToggleFavorito && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggleFavorito(); }}
+            className="p-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors touch-manipulation"
+            aria-label={isFavorito ? 'Remover de favoritos' : 'Agregar a favoritos'}
+          >
+            <svg
+              className={`w-6 h-6 transition-colors ${isFavorito ? 'text-orange-500' : 'text-gray-400 hover:text-orange-400'}`}
+              fill={isFavorito ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              strokeWidth={isFavorito ? 0 : 1.5}
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.716-1.607-2.377-2.733-4.313-2.733C5.648 3.75 3.5 5.765 3.5 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   );

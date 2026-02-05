@@ -56,6 +56,45 @@ const Catalogo: React.FC = () => {
   // ✅ NUEVO: Trackear estado previo de filtros para detectar cuando se limpian
   const filtrosPreviosRef = useRef<boolean>(false);
 
+  // Favoritos del usuario actual
+  const [favoriteIds, setFavoriteIds] = useState<number[]>([]);
+
+  useEffect(() => {
+    const cargarFavoritos = async () => {
+      const userStr = localStorage.getItem('user');
+      if (!userStr) return;
+      try {
+        const res = await apiManager.favoritos.listarIds();
+        if (res.success && res.data) {
+          setFavoriteIds(res.data.ids);
+        }
+      } catch (e) {
+        // No bloquear el catálogo
+      }
+    };
+    cargarFavoritos();
+  }, []);
+
+  const handleToggleFavorito = async (productoId: number) => {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      window.dispatchEvent(new CustomEvent('open-login-modal'));
+      return;
+    }
+
+    try {
+      if (favoriteIds.includes(productoId)) {
+        await apiManager.favoritos.eliminar(productoId);
+        setFavoriteIds(prev => prev.filter(id => id !== productoId));
+      } else {
+        await apiManager.favoritos.agregar(productoId);
+        setFavoriteIds(prev => [...prev, productoId]);
+      }
+    } catch (e) {
+      console.error('Error al togglear favorito:', e);
+    }
+  };
+
   // FUNCIÓN HELPER PARA FORMATEAR PRECIO
   const formatearPrecio = (precio: any): string => {
     if (!precio || precio === '' || precio === null || precio === undefined) {
@@ -1136,6 +1175,8 @@ useEffect(() => {
                           description={producto.descripcion || ''}
                           price={formatearPrecio(producto.precio)}
                           stock={producto.stock}
+                          isFavorito={favoriteIds.includes(producto.id)}
+                          onToggleFavorito={() => handleToggleFavorito(producto.id)}
                         />
                       ))}
                     </div>

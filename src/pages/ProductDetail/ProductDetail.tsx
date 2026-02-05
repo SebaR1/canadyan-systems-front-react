@@ -35,6 +35,9 @@ const ProductDetail: React.FC = () => {
   const [archivos, setArchivos] = useState<ProductoArchivo[]>([]);
   const [loadingArchivos, setLoadingArchivos] = useState(false);
 
+  // Estado de favorito
+  const [isFavorito, setIsFavorito] = useState(false);
+
   useEffect(() => {
     if (!id || !Number.isInteger(Number(id))) {
       setError('ID de producto inválido');
@@ -107,6 +110,19 @@ const ProductDetail: React.FC = () => {
         if ((response.data as any).producto.id) {
           await cargarImagenes((response.data as any).producto.id);
           await cargarArchivos((response.data as any).producto.id);
+
+          // Verificar si es favorito (solo si hay usuario logueado)
+          const userStr = localStorage.getItem('user');
+          if (userStr) {
+            try {
+              const checkRes = await apiManager.favoritos.verificar((response.data as any).producto.id);
+              if (checkRes.success && checkRes.data) {
+                setIsFavorito(checkRes.data.es_favorito);
+              }
+            } catch (e) {
+              // No bloquear la carga del producto si falla esta verificación
+            }
+          }
         }
 
         // Si hay categoría, obtener información adicional
@@ -185,6 +201,25 @@ const ProductDetail: React.FC = () => {
       minimumFractionDigits: 0,
       maximumFractionDigits: 2
     }).format(precio);
+  };
+
+  const handleToggleFavorito = async () => {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) {
+      window.dispatchEvent(new CustomEvent('open-login-modal'));
+      return;
+    }
+
+    try {
+      if (isFavorito) {
+        await apiManager.favoritos.eliminar(Number(id));
+      } else {
+        await apiManager.favoritos.agregar(Number(id));
+      }
+      setIsFavorito(!isFavorito);
+    } catch (e) {
+      console.error('Error al togglear favorito:', e);
+    }
   };
 
   const handleComprar = () => {
@@ -385,13 +420,31 @@ const ProductDetail: React.FC = () => {
                   {formatearPrecio(producto.precio)}
                 </div>
 
-                {/* Botón Comprar */}
-                <button
-                  onClick={handleComprar}
-                  className="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-semibold py-3 px-8 rounded-full transition-colors duration-200 text-lg"
-                >
-                  COMPRAR
-                </button>
+                {/* Botones: Comprar + Favorito */}
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleComprar}
+                    className="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-semibold py-3 px-8 rounded-full transition-colors duration-200 text-lg"
+                  >
+                    COMPRAR
+                  </button>
+
+                  <button
+                    onClick={handleToggleFavorito}
+                    className="p-3 rounded-full border-2 border-gray-200 hover:border-orange-400 hover:bg-orange-50 active:bg-orange-100 transition-colors"
+                    aria-label={isFavorito ? 'Remover de favoritos' : 'Agregar a favoritos'}
+                  >
+                    <svg
+                      className={`w-6 h-6 transition-colors ${isFavorito ? 'text-orange-500' : 'text-gray-400'}`}
+                      fill={isFavorito ? 'currentColor' : 'none'}
+                      stroke="currentColor"
+                      strokeWidth={isFavorito ? 0 : 1.5}
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.716-1.607-2.377-2.733-4.313-2.733C5.648 3.75 3.5 5.765 3.5 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             </div>
 
