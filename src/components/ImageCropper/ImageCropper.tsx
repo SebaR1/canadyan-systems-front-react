@@ -177,7 +177,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 z-[60] flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[calc(100vh-2rem)] overflow-hidden flex flex-col">
         
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200">
@@ -203,46 +203,27 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
         </div>
 
         {/* Selector de proporción */}
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
+        <div className="px-6 py-2 bg-gray-50 border-b border-gray-200">
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
             Selecciona la proporción deseada:
           </label>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             {aspectRatioPresets.map((preset) => (
               <button
                 key={preset.value}
                 type="button"
                 onClick={() => handleAspectChange(preset.value)}
-                className={`relative px-4 py-3 rounded-lg text-sm font-medium transition-all border-2 ${
+                className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 ${
                   aspect === preset.value
-                    ? 'bg-orange-600 text-white border-orange-600 shadow-lg scale-105'
+                    ? 'bg-orange-600 text-white border-orange-600 shadow-md'
                     : 'bg-white text-gray-700 border-gray-300 hover:border-orange-400 hover:bg-orange-50'
                 }`}
                 disabled={processing}
               >
-                {/* Icono visual de proporción */}
-                <div className="flex justify-center mb-2">
-                  <div 
-                    className={`border-2 ${
-                      aspect === preset.value ? 'border-white' : 'border-gray-400'
-                    }`}
-                    style={{
-                      width: preset.value === 1 ? '40px' : preset.value > 1 ? '50px' : '35px',
-                      height: preset.value === 1 ? '40px' : preset.value > 1 ? '37.5px' : '46.7px'
-                    }}
-                  />
-                </div>
-                <div className="font-semibold">{preset.label}</div>
-                <div className={`text-xs mt-1 ${
-                  aspect === preset.value ? 'text-orange-100' : 'text-gray-500'
-                }`}>
-                  {preset.description}
-                </div>
-                
-                {/* Checkmark cuando está seleccionado */}
+                {preset.label}
                 {aspect === preset.value && (
-                  <div className="absolute top-2 right-2">
-                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <div className="absolute top-1 right-1">
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
                   </div>
@@ -253,31 +234,33 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
         </div>
 
         {/* Área de recorte */}
-        <div className="flex-1 overflow-auto p-6 bg-gray-100">
-          <div className="flex items-center justify-center min-h-full relative">
-            {/* Indicador compacto de dimensiones - flotante arriba */}
-            {cropDimensions && (
-              <div className="absolute top-4 right-4 z-10">
-                <div className={`px-3 py-2 rounded-lg shadow-md text-sm font-medium ${
-                  cropDimensions.isValid
-                    ? 'bg-green-100 text-green-800 border border-green-300'
-                    : 'bg-red-100 text-red-800 border border-red-300'
-                }`}>
-                  <div className="flex items-center gap-2">
-                    {cropDimensions.isValid ? (
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                    <span>{cropDimensions.width} × {cropDimensions.height}px</span>
-                  </div>
+        <div className="flex-1 relative min-h-0">
+          {/* Badge de dimensiones - fuera del scroll, siempre visible */}
+          {cropDimensions && (
+            <div className="absolute top-2 right-2 z-20">
+              <div className={`px-3 py-1.5 rounded-lg shadow-md text-sm font-medium ${
+                cropDimensions.isValid
+                  ? 'bg-green-100 text-green-800 border border-green-300'
+                  : 'bg-red-100 text-red-800 border border-red-300'
+              }`}>
+                <div className="flex items-center gap-2">
+                  {cropDimensions.isValid ? (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                  <span>{cropDimensions.width} × {cropDimensions.height}px</span>
                 </div>
               </div>
-            )}
+            </div>
+          )}
+
+          <div className="h-full overflow-auto p-6 bg-gray-100">
+            <div className="flex items-center justify-center min-h-full">
 
             <ReactCrop
               crop={crop}
@@ -327,38 +310,6 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                 }}
               />
             </ReactCrop>
-          </div>
-        </div>
-
-        {/* Información */}
-        <div className="px-6 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-y border-blue-200">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <p className="font-semibold text-gray-900 mb-2">💡 Cómo usar la herramienta de recorte:</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-700">
-                <div className="flex items-start gap-2">
-                  <span className="text-orange-600 font-bold">1.</span>
-                  <span>Selecciona la <strong>proporción</strong> deseada arriba</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-orange-600 font-bold">2.</span>
-                  <span>Arrastra las <strong>esquinas</strong> para ajustar el tamaño</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-orange-600 font-bold">3.</span>
-                  <span>Arrastra el <strong>centro</strong> para mover la selección</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="text-orange-600 font-bold">4.</span>
-                  <span>Click en <strong>"Recortar"</strong> cuando esté lista</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
