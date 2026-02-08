@@ -214,23 +214,23 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
           </div>
         </div>
 
-        {/* Área de recorte */}
-        <div className="flex-1 relative min-h-0">
-          {/* Badge de dimensiones - fuera del scroll, siempre visible */}
+        {/* Área de recorte - altura dinámica con scroll */}
+        <div className="relative max-h-[calc(100vh-180px)] overflow-auto bg-gray-100">
+          {/* Badge de dimensiones - sticky para que siempre sea visible */}
           {cropDimensions && (
-            <div className="absolute top-2 right-2 z-20">
-              <div className={`px-3 py-1.5 rounded-lg shadow-md text-sm font-medium ${
+            <div className="sticky top-2 float-right mr-4 z-20">
+              <div className={`px-2 py-1 rounded shadow text-xs font-medium ${
                 cropDimensions.isValid
                   ? 'bg-green-100 text-green-800 border border-green-300'
                   : 'bg-red-100 text-red-800 border border-red-300'
               }`}>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
                   {cropDimensions.isValid ? (
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
                   ) : (
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                     </svg>
                   )}
@@ -240,8 +240,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
             </div>
           )}
 
-          <div className="h-full overflow-auto p-6 bg-gray-100">
-            <div className="flex items-center justify-center min-h-full">
+          <div className="p-4 flex items-center justify-center clear-both">
 
             <ReactCrop
               crop={crop}
@@ -256,7 +255,7 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                 ref={imgRef}
                 src={imageUrl}
                 alt="Imagen a recortar"
-                className="max-w-full max-h-[500px] object-contain"
+                className="max-w-full"
                 onLoad={(e) => {
                   const img = e.currentTarget;
                   const imgWidth = img.width;
@@ -291,7 +290,6 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
                 }}
               />
             </ReactCrop>
-            </div>
           </div>
         </div>
 
