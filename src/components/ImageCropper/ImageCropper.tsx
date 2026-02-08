@@ -179,57 +179,38 @@ const ImageCropper: React.FC<ImageCropperProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-75 z-[60] flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[calc(100vh-2rem)] overflow-hidden flex flex-col">
         
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-medium text-gray-900">
-                Recortar Imagen
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">
-                Ajusta el área de recorte a la proporción deseada
-              </p>
+        {/* Header con selector de proporción */}
+        <div className="px-4 py-2 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-4">
+            <h3 className="text-base font-medium text-gray-900 whitespace-nowrap">
+              Recortar
+            </h3>
+            <div className="flex-1 grid grid-cols-3 gap-2">
+              {aspectRatioPresets.map((preset) => (
+                <button
+                  key={preset.value}
+                  type="button"
+                  onClick={() => handleAspectChange(preset.value)}
+                  className={`px-2 py-1 rounded text-sm font-medium transition-all border ${
+                    aspect === preset.value
+                      ? 'bg-orange-600 text-white border-orange-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-orange-400'
+                  }`}
+                  disabled={processing}
+                >
+                  {preset.label}
+                </button>
+              ))}
             </div>
             <button
               onClick={onCancel}
               disabled={processing}
               className="text-gray-400 hover:text-gray-600"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-          </div>
-        </div>
-
-        {/* Selector de proporción */}
-        <div className="px-6 py-2 bg-gray-50 border-b border-gray-200">
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Selecciona la proporción deseada:
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {aspectRatioPresets.map((preset) => (
-              <button
-                key={preset.value}
-                type="button"
-                onClick={() => handleAspectChange(preset.value)}
-                className={`relative px-3 py-1.5 rounded-lg text-sm font-medium transition-all border-2 ${
-                  aspect === preset.value
-                    ? 'bg-orange-600 text-white border-orange-600 shadow-md'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-orange-400 hover:bg-orange-50'
-                }`}
-                disabled={processing}
-              >
-                {preset.label}
-                {aspect === preset.value && (
-                  <div className="absolute top-1 right-1">
-                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                )}
-              </button>
-            ))}
           </div>
         </div>
 
