@@ -1,25 +1,49 @@
 import React from 'react';
-import logo from './logo.svg';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
+
+// Pages
+import Home from './pages/Home/Home';
+import Catalogo from './pages/Catalogo/Catalogo';
+import ProductDetail from './pages/ProductDetail/ProductDetail';
+import Contacto from './pages/Contacto/Contacto';
+import Perfil from './pages/Perfil/Perfil';
+import ResetPassword from './pages/ResetPassword/ResetPassword';
+import Favoritos from './pages/Favoritos/Favoritos';
+
+// Admin Pages
+import VerUsuarios from './pages/Admin/VerUsuarios';
+import VerProductos from './pages/Admin/VerProductos';
+import CategoriasAtributos from './pages/Admin/CategoriasAtributos';
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <Router basename="/canadian-sistemas">
+      <Routes>
+        <Route path="/" element={<Home />} />
+        
+        {/* Ruta original (mantener para compatibilidad) */}
+        <Route path="/catalogo" element={<Catalogo />} />
+
+        {/* NUEVAS RUTAS con slugs - Soporta hasta 3 niveles */}
+        <Route path="/catalogo/:categoriaSlug" element={<Catalogo />} />
+        <Route path="/catalogo/:categoriaSlug/:subcategoriaSlug" element={<Catalogo />} />
+        <Route path="/catalogo/:categoriaSlug/:subcategoriaSlug/:subsubcategoriaSlug" element={<Catalogo />} />
+        
+        {/* NUEVA RUTA: Vista de producto individual */}
+        <Route path="/producto/:id" element={<ProductDetail />} />
+        
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/favoritos" element={<Favoritos />} />
+        <Route path="/contacto" element={<Contacto />} />
+        <Route path="/perfil" element={<Perfil />} />
+
+        {/* RUTAS DE ADMIN - Protegidas por validación del backend */}
+        <Route path="/admin/usuarios" element={<VerUsuarios />} />
+        <Route path="/admin/productos" element={<VerProductos />} />
+        <Route path="/admin/categorias-atributos" element={<CategoriasAtributos />} />
+      </Routes>
+    </Router>
   );
 }
 
