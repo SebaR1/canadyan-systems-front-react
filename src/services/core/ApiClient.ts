@@ -60,10 +60,12 @@ export class ApiClient {
         }
 
         const message = errorData?.message || '';
-        if (message.toLowerCase().includes('acceso denegado') ||
+        // Solo tratar como sesión expirada si el usuario realmente estaba logueado
+        const hadSession = !!localStorage.getItem('user');
+        if (hadSession && (message.toLowerCase().includes('acceso denegado') ||
             message.toLowerCase().includes('no autorizado') ||
             message.toLowerCase().includes('solo administradores') ||
-            message.toLowerCase().includes('requieren permisos')) {
+            message.toLowerCase().includes('requieren permisos'))) {
 
           // Limpiar autenticación
           localStorage.removeItem('user');
