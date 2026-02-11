@@ -46,6 +46,7 @@ interface ProductoRowProps {
   onEdit: (producto: Producto) => void;
   onToggleStatus: (id: number, activo: boolean) => void;
   onToggleFeatured: (id: number, destacado: boolean) => void;
+  onDelete: (producto: Producto) => void;
 }
 
 const ProductoRow = React.memo(({
@@ -54,7 +55,8 @@ const ProductoRow = React.memo(({
   isChangingFeatured,
   onEdit,
   onToggleStatus,
-  onToggleFeatured
+  onToggleFeatured,
+  onDelete
 }: ProductoRowProps) => {
   return (
     <tr className={producto.activo ? 'hover:bg-gray-50' : 'bg-gray-200 hover:bg-gray-300'}>
@@ -112,17 +114,17 @@ const ProductoRow = React.memo(({
           <button
             onClick={() => onToggleFeatured(producto.id, producto.destacado)}
             disabled={isChangingFeatured}
-            className={`inline-flex items-center justify-center w-7 h-7 rounded transition-colors ${
+            className={`inline-flex items-center justify-center w-8 h-8 rounded-md border transition-colors ${
               producto.destacado
-                ? 'text-yellow-500 hover:text-yellow-600'
-                : 'text-gray-300 hover:text-yellow-400'
+                ? 'text-yellow-500 bg-yellow-50 border-yellow-300 hover:bg-yellow-100'
+                : 'text-gray-400 bg-gray-50 border-gray-200 hover:text-yellow-500 hover:bg-yellow-50 hover:border-yellow-300'
             } disabled:opacity-50 disabled:cursor-not-allowed`}
             title={producto.destacado ? 'Quitar de destacados' : 'Marcar como destacado'}
           >
             {isChangingFeatured ? (
-              <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
             ) : (
-              <svg className="w-4 h-4" fill={producto.destacado ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill={producto.destacado ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
               </svg>
             )}
@@ -163,6 +165,16 @@ const ProductoRow = React.memo(({
           >
             Ver
           </Link>
+          {/* Eliminar */}
+          <button
+            onClick={() => onDelete(producto)}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-gray-200 bg-gray-50 text-gray-400 hover:text-red-600 hover:bg-red-50 hover:border-red-300 transition-colors"
+            title="Eliminar producto permanentemente"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
         </div>
       </td>
     </tr>
@@ -191,9 +203,14 @@ const VerProductos: React.FC = () => {
   const [imagenFiltro, setImagenFiltro] = useState<string>('todos');
 
 
-  // Estados del modal
+  // Estados del modal de producto
   const [showProductoModal, setShowProductoModal] = useState(false);
   const [editingProducto, setEditingProducto] = useState<Producto | null>(null);
+
+  // Estados del modal de eliminación
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingProducto, setDeletingProducto] = useState<Producto | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // ✅ NUEVOS ESTADOS para infinite scroll
   const [loadingMore, setLoadingMore] = useState(false);
@@ -558,6 +575,47 @@ const VerProductos: React.FC = () => {
     setEditingProducto(null);
   };
 
+  // Abrir modal de confirmación de eliminación
+  const handleDeleteProducto = useCallback((producto: Producto) => {
+    setDeletingProducto(producto);
+    setShowDeleteModal(true);
+  }, []);
+
+  // Confirmar eliminación permanente
+  const confirmDeleteProducto = async () => {
+    if (!deletingProducto) return;
+
+    try {
+      setIsDeleting(true);
+      const response = await fetch(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/api/routes/productos.php?action=delete&id=${deletingProducto.id}`,
+        {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        setProductos(prev => prev.filter(p => p.id !== deletingProducto.id));
+        setTotalProductos(prev => prev - 1);
+        setShowDeleteModal(false);
+        setDeletingProducto(null);
+      } else {
+        setError(result.error || 'Error al eliminar el producto');
+      }
+    } catch (err) {
+      console.error('Error eliminando producto:', err);
+      setError('Error de conexión al eliminar producto');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Mostrar loading mientras carga
   if (loading && !accessDenied) {
@@ -863,6 +921,7 @@ const VerProductos: React.FC = () => {
                           onEdit={handleEditProducto}
                           onToggleStatus={toggleProductStatus}
                           onToggleFeatured={toggleProductFeatured}
+                          onDelete={handleDeleteProducto}
                         />
                       ))}
                     </tbody>
@@ -910,7 +969,65 @@ const VerProductos: React.FC = () => {
         onSubmit={handleProductoSubmit}
         editing={editingProducto}
       />
-      
+
+      {/* Modal de confirmación de eliminación */}
+      {showDeleteModal && deletingProducto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => !isDeleting && setShowDeleteModal(false)} />
+          <div className="relative bg-white rounded-lg shadow-xl max-w-sm w-full mx-4 p-4">
+            <div className="flex items-center mb-2">
+              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-red-100 flex items-center justify-center">
+                <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <h3 className="ml-2 text-base font-semibold text-gray-900">Eliminar producto</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">
+              Estás por eliminar permanentemente:
+            </p>
+            <p className="text-sm font-semibold text-gray-900 mb-3">
+              "{deletingProducto.nombre}"
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-md p-2.5 mb-2">
+              <p className="text-xs text-red-700">
+                Esta acción es irreversible. Se eliminarán también todas las imágenes, archivos descargables, atributos y favoritos asociados.
+              </p>
+            </div>
+            {!!deletingProducto.activo && (
+              <div className="bg-orange-50 border border-orange-200 rounded-md p-2.5 mb-2">
+                <p className="text-xs text-orange-700">
+                  Recordá que también podés <strong>desactivar</strong> el producto para ocultarlo del catálogo sin eliminarlo.
+                </p>
+              </div>
+            )}
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => { setShowDeleteModal(false); setDeletingProducto(null); }}
+                disabled={isDeleting}
+                className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmDeleteProducto}
+                disabled={isDeleting}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isDeleting ? (
+                  <span className="flex items-center">
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                    Eliminando...
+                  </span>
+                ) : (
+                  'Eliminar permanentemente'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Footer />
     </>
   );

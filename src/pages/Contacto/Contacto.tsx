@@ -7,6 +7,9 @@ import apiManager from '../../services/ApiIndex';
 const Contacto: React.FC = () => {
   const location = useLocation();
   const [emailCopied, setEmailCopied] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [mensajeEnviado, setMensajeEnviado] = useState(false);
+  const [errores, setErrores] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     nombreApellido: '',
     cuit: '',
@@ -100,13 +103,15 @@ const Contacto: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    setErrores([]);
+
     // Validar que tenga al menos celular o email
     if (!formData.celular && !formData.correoElectronico) {
-      alert('Debe completar al menos el celular o el correo electrónico');
+      setErrores(['Debe completar al menos el celular o el correo electrónico']);
       return;
     }
-    
+
+    setEnviando(true);
     try {
       const response = await apiManager.contacto.enviar({
         nombreApellido: formData.nombreApellido,
@@ -117,10 +122,10 @@ const Contacto: React.FC = () => {
         razonSocialEmpresa: formData.razonSocialEmpresa,
         mensaje: formData.mensaje
       });
-      
+
       if (response.success) {
-        alert('¡Mensaje enviado exitosamente! Te contactaremos pronto.');
-        // Limpiar formulario
+        setMensajeEnviado(true);
+        setErrores([]);
         setFormData({
           nombreApellido: '',
           cuit: '',
@@ -131,11 +136,21 @@ const Contacto: React.FC = () => {
           mensaje: ''
         });
       } else {
-        alert('Error: ' + (response.error || 'No se pudo enviar el mensaje'));
+        // Extraer errores de validación del backend
+        // ApiClient pone el body completo en response.data para errores HTTP
+        const data = response.data as any;
+        const errorObj = data?.error;
+        if (errorObj?.errores && Array.isArray(errorObj.errores)) {
+          setErrores(errorObj.errores);
+        } else {
+          setErrores([typeof response.error === 'string' ? response.error : 'No se pudo enviar el mensaje']);
+        }
       }
     } catch (error) {
       console.error('Error enviando mensaje:', error);
-      alert('Error de conexión al enviar el mensaje');
+      setErrores(['Error de conexión al enviar el mensaje']);
+    } finally {
+      setEnviando(false);
     }
   };
 
@@ -222,6 +237,25 @@ const Contacto: React.FC = () => {
 
               {/* Formulario derecho */}
               <div className="lg:w-2/3">
+                {mensajeEnviado ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-4">
+                      <svg className="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Mensaje enviado</h3>
+                    <p className="text-gray-700 text-sm mb-6">
+                      Recibimos tu consulta, te estaremos contactando a la brevedad.
+                    </p>
+                    <button
+                      onClick={() => setMensajeEnviado(false)}
+                      className="text-sm text-orange-400 hover:text-orange-300 underline"
+                    >
+                      Enviar otro mensaje
+                    </button>
+                  </div>
+                ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
                   
                   {/* Fila 1: Nombre y CUIT */}
@@ -338,17 +372,35 @@ const Contacto: React.FC = () => {
                     ></textarea>
                   </div>
 
+                  {/* Errores de validación */}
+                  {errores.length > 0 && (
+                    <div className="bg-red-50 border border-red-300 rounded-lg p-3">
+                      {errores.map((err, i) => (
+                        <p key={i} className="text-xs text-red-600">{err}</p>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Botón Enviar - Alineado a la derecha */}
                   <div className="flex justify-end pt-2">
                     <button
                       type="submit"
-                      className="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-semibold py-2 px-8 rounded transition-colors duration-200 touch-manipulation text-sm"
+                      disabled={enviando}
+                      className="bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-semibold py-2 px-8 rounded transition-colors duration-200 touch-manipulation text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      ENVIAR
+                      {enviando ? (
+                        <span className="flex items-center">
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                          ENVIANDO...
+                        </span>
+                      ) : (
+                        'ENVIAR'
+                      )}
                     </button>
                   </div>
 
                 </form>
+                )}
               </div>
             </div>
           </div>
